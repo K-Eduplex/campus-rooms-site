@@ -104,7 +104,7 @@ RB.I18N.en = {
   'conflict.existing': 'Existing bookings in the way',
   'conflict.reason': 'Reason for preemption (required)',
   'conflict.reason.ph': 'Explain to the approver why this slot is needed.',
-  'conflict.protected': 'Starts within 24 hours — preemption is not allowed.',
+  'conflict.protected': 'Starts within {hours} hours — preemption is not allowed.',
   'conflict.alternatives': 'Alternatives',
   'conflict.pickAlt': 'Book this instead',
   'popover.organizer': 'Booked by',

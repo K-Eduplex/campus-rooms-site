@@ -7,7 +7,7 @@
   <!--
     [help.html] — 사용자 매뉴얼(영어, D-12). 정적 페이지. 정책이 바뀌면 이 페이지도 고친다(D-07/08/09/21/22).
   -->
-  <link rel="stylesheet" href="css/app.css?v=b2d97aa">
+  <link rel="stylesheet" href="css/app.css?v=145c412">
   <style>
     .doc { max-width: 760px; margin: 28px auto; padding: 0 20px 60px; line-height: 1.6; }
     .doc h1 { font-size: 24px; margin-bottom: 4px; }
@@ -54,10 +54,11 @@
     </ol>
 
     <h2 id="board">2. Reading the board</h2>
-    <p>The <b>Board</b> shows every bookable room for one day: rooms down the side, hours across the top.</p>
+    <p>The <b>Board</b> shows the bookable rooms for one day: rooms down the side, hours across the top. It has two tabs — <b>Rooms</b> for the spaces booked every day, and <b>Other spaces</b> for the ones booked less often. If you cannot find a space, look on the other tab.</p>
     <table>
       <tr><th>Grey block</th><td>Confirmed booking. Click it to see the title and who booked it.</td></tr>
       <tr><th>Blue block</th><td>Your own booking.</td></tr>
+      <tr><th>"inactive" after a space name</th><td>On <b>Other spaces</b>. The space is not open for booking yet — only its approver or an administrator can book it.</td></tr>
       <tr><th>Yellow striped block</th><td>Waiting for approval (not confirmed yet).</td></tr>
       <tr><th>Orange dashed outline</th><td>Someone has asked to take over this slot (a preemption request is pending).</td></tr>
       <tr><th>Red block</th><td>Not a valid reservation — it was typed directly into the room calendar and overlaps another booking. Ask the administrator.</td></tr>
@@ -100,11 +101,11 @@
     <p>For repeating bookings that clash on some dates only, you can also choose <b>Book free occurrences only</b>.</p>
 
     <h2 id="approval">5. Rooms that need approval</h2>
-    <p>Rooms marked <b>*</b> (for example large halls) are not first come, first served. Every booking goes to the room approver first. Until they approve, the board shows your booking as yellow striped and attendees are not invited yet. You are emailed when it is approved or rejected; if nobody decides within 24 hours the request expires and the slot is released.</p>
+    <p>Rooms marked <b>*</b> (for example large halls) are not first come, first served. Every booking goes to the room approver first. Until they approve, the board shows your booking as yellow striped and attendees are not invited yet. You are emailed when it is approved or rejected; if nobody decides within 24 hours the request expires and the slot is released. One exception: if you are that room's own approver (or an administrator), your booking of a free slot is confirmed right away — you do not approve your own request.</p>
 
     <h2 id="mine">6. Your bookings and cancelling</h2>
     <ul>
-      <li><b>My bookings</b> lists your upcoming bookings and pending requests.</li>
+      <li><b>My bookings</b> lists up to 50 of your bookings and pending requests over about the next two months. A booking further ahead is not listed there — go to its date on the board to see or cancel it.</li>
       <li>To cancel, press <b>Cancel booking</b> there, or click your blue block on the board. Attendees are told automatically.</li>
       <li>Bookings you made in Google Calendar (section 7) belong to your calendar: remove the room or delete the event there.</li>
       <li>Bookings made here are owned by the booking system, so they cannot be edited from Google Calendar. Use <b>My bookings → Edit</b> to change the title, attendees or time.</li>
@@ -128,8 +129,9 @@
 
     <h2 id="approvers">8. For room approvers</h2>
     <ul>
+      <li>Your own bookings in the rooms you approve are confirmed immediately when the slot is free — whether you book here or add the room from Google Calendar. A booking that clashes with someone else's still goes through the steps in section 4, and you decide it as the approver.</li>
       <li>You get an email for each request that needs you, with <b>Approve</b> and <b>Reject</b> links. One click is enough — the first approver to decide settles it. The links identify you; do not forward them.</li>
-      <li>The <b>Approvals</b> tab in the app shows the same requests with the reason, purpose grade, the booking that would be displaced and whether its holder agreed to yield. The tab badge shows how many are waiting.</li>
+      <li>The <b>Approvals</b> tab in the app shows the same requests with the reason, purpose grade, the booking that would be displaced and whether its holder agreed to yield. The tab badge shows how many are waiting. Below them, <b>Recent decisions</b> keeps what you approved or rejected until that booking's time has passed.</li>
       <li>If nobody decides within 4 working hours, super admins are copied in as a backup and asked to act only if you have not.</li>
       <li>Rejecting asks for a short note, which is sent to the requester.</li>
     </ul>
@@ -139,7 +141,7 @@
       <tr><th>Why can't I sign in?</th><td>Use your school Google account. If you see "not allowed", your domain is not on the list — contact the administrator.</td></tr>
       <tr><th>The board looks out of date</th><td>It refreshes when you change days or after you book. Press <kbd>‹</kbd> then <kbd>›</kbd>, or reload the page.</td></tr>
       <tr><th>I booked but nobody was invited</th><td>Attendees are invited only once the booking is confirmed. For approval rooms that is after approval.</td></tr>
-      <tr><th>Can I change a booking?</th><td><b>My bookings → Edit</b> changes the title, attendees or time of a booking made here (single bookings in confirmed status). To change the room, make it repeat, or move a booking in an approval-required room, cancel and book again. Bookings from Google Calendar are edited there.</td></tr>
+      <tr><th>Can I change a booking?</th><td><b>My bookings → Edit</b> changes the title, attendees or time of a booking made here (single bookings in confirmed status, within the roughly two months <b>My bookings</b> covers). To change the room, make it repeat, or move a booking in an approval-required room, cancel and book again. Bookings from Google Calendar are edited there.</td></tr>
       <tr><th>Who decides preemptions?</th><td>The room approver, unless the current holder agrees to yield. Purpose grade is a guide, not an automatic rule.</td></tr>
       <tr><th>Where is my data stored?</th><td>Inside the schools' Google Workspace. See the <a href="privacy.html">privacy policy</a>.</td></tr>
     </table>

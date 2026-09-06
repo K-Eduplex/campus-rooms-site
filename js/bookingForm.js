@@ -327,7 +327,8 @@ RB.bookingForm = (function () {
             .catch(function (err) { done(); U.toast(t('result.error', { message: err.message || err.code }), 'error'); });
         } }, [t('btn.preempt')])
       ])
-      : (r && r.mode === 'AUTO' ? U.el('p.note', null, [t('conflict.protected')]) : null);
+      // 보호 구간은 방마다 다르다(Resources 시트 ProtectHours). 값이 없으면 D-07 확정값 12h.
+      : (r && r.mode === 'AUTO' ? U.el('p.note', null, [t('conflict.protected', { hours: r.protectHours || cfg().protectHours || 12 })]) : null);
 
     var body = U.el('div', null, [
       U.el('p.lead', null, [recurring ? t('result.conflictRecurring', { total: result.occurrences, conflicts: result.conflicts.length }) : t('result.conflict')]),

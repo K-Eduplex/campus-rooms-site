@@ -27,7 +27,7 @@ RB.mock = (function () {
     slotMinutes: 30,
     displayHours: '07:00-21:00',
     maxAdvanceDays: 180,
-    protectHours: 24,
+    protectHours: 12,
     businessHours: '07:00-19:00',
     escalationHours: 4,
     expiryHours: 24,
@@ -357,7 +357,7 @@ RB.mock = (function () {
       return delay({ added: 2, total: RESOURCES.length + 2 });
     },
 
-    testEmail: function () { return delay({ sent: 3, to: me.email }); },
+    testEmail: function () { return delay({ sent: 5, to: me.email }); },
     testAnnounce: function () { return delay({ ok: true, id: '123' }); },
 
     /** 웹훅 저장 (mock) */
