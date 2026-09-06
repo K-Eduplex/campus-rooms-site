@@ -12,10 +12,10 @@
 window.RB = window.RB || {};
 
 RB.config = {
-  // Apps Script 웹앱 배포 URL (소유자 권한 실행). HANDOFF.md "이어받은 인프라" 참조.
+  // Apps Script 웹앱 배포 URL (소유자 권한 실행). HANDOFF.md 6절 "인프라" 참조.
   API_URL: 'https://script.google.com/macros/s/AKfycbzITvPbXwBH_6ljQlpLrMxp-Hrv2pb9UOLHOrHgOkh_nb01w2fOrjzuJ7iYX-rKVPcYpQ/exec',
 
-  // Google Identity Services 클라이언트 ID. 사람이 할 일(HANDOFF.md) 완료 후 채운다.
+  // Google Identity Services 클라이언트 ID(공개값). GCP 의 `Room Booking web` 클라이언트 — HANDOFF.md 6절 참조.
   CLIENT_ID: '704749344755-rmu2v4on2jli8ehu0521a4q5if2u0nqd.apps.googleusercontent.com',
 
   // 모든 시간 표시·계산은 이 타임존 기준. 보는 사람의 PC 시간대는 무시한다.
