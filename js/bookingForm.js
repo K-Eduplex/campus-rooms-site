@@ -93,20 +93,43 @@ RB.bookingForm = (function () {
   }
 
   function cfg() { return RB.app.state.config; }
-  /** 예약 폼 장소 목록: 활성 공간 전부 + (담당자·관리자에게만) 비활성 공간. Rooms(MAIN) 먼저, Other spaces 뒤에. */
+  /** 예약 폼 장소 목록: 활성 공간 전부 + (담당자·관리자에게만) 비활성 공간. MAIN, OTHER, ZOOM 순서로 정렬한다. */
   function resources() {
     var me = RB.app.state.user || {};
     var list = RB.app.state.resources.filter(function (r) {
       if (r.reservable === false) return false;
       return r.active !== false || me.isSuperAdmin || (me.approverOf || []).indexOf(r.calendarId) !== -1;
     });
-    var isOther = function (r) { return r.board === 'OTHER' || r.active === false; };
-    return list.filter(function (r) { return !isOther(r); }).concat(list.filter(isOther));
+    var byGroup = function (g) { return list.filter(function (r) { return groupOf(r) === g; }); };
+    return byGroup('MAIN').concat(byGroup('OTHER'), byGroup('ZOOM'));
+  }
+  /** @param {Object} r 장소 객체
+   * @returns {string} 'ZOOM' | 'OTHER' | 'MAIN'
+   * board.js groupOf / Config.gs boardGroupOf_ 와 같은 규칙. */
+  function groupOf(r) {
+    if (r.kind === 'ZOOM' || r.board === 'ZOOM') return 'ZOOM';
+    if (r.board === 'OTHER' || r.active === false) return 'OTHER';
+    return 'MAIN';
+  }
+  /** @param {string} calendarId
+   * @returns {boolean} ZOOM 종류 자원인지 여부 */
+  function isZoomRes(calendarId) {
+    var found = RB.app.state.resources.filter(function (r) { return r.calendarId === calendarId; })[0];
+    return !!(found && found.kind === 'ZOOM');
+  }
+  /** select 를 options 로 다시 채운다. 기존 선택값이 새 범위에 있으면 유지하고, 없으면 첫 항목을 선택한다. */
+  function fillSelect(sel, options, keep) {
+    U.clear(sel);
+    options.forEach(function (o) { sel.appendChild(U.el('option', { value: o.value }, [o.label])); });
+    var hasKeep = options.some(function (o) { return String(o.value) === String(keep); });
+    if (hasKeep && keep !== undefined) sel.value = String(keep);
+    else if (sel.options.length) sel.selectedIndex = 0;
   }
 
-  /** 표시 범위를 슬롯으로 나눈 시각 옵션 [{value:분, label:'07:00'}] (endInclusive 면 마지막 경계 포함) */
-  function timeOptions(endInclusive) {
-    var hm = (cfg().displayHours || '06:00-22:00').split('-');
+  /** 표시 범위를 슬롯으로 나눈 시각 옵션 [{value:분, label:'07:00'}] (endInclusive 면 마지막 경계 포함; zoom 이면 Zoom 24시간 범위) */
+  function timeOptions(endInclusive, zoom) {
+    var hours = zoom ? (cfg().zoomDisplayHours || '00:00-24:00') : (cfg().displayHours || '06:00-22:00');
+    var hm = hours.split('-');
     var from = T.parseHM(hm[0]), to = T.parseHM(hm[1]), step = cfg().slotMinutes || 30;
     var list = [];
     for (var m = from; endInclusive ? m <= to : m < to; m += step) list.push({ value: m, label: T.fmtHM(m) });
@@ -147,10 +170,9 @@ RB.bookingForm = (function () {
       endMin: preset.endMin !== undefined ? preset.endMin : timeOptions()[0].value + 60
     };
 
-    var resSel = U.el('select.select', { name: 'calendarId', onchange: updateModeNote });
+    var resSel = U.el('select.select', { name: 'calendarId', onchange: onResourceChange });
     (function () {
-      var isOther = function (r) { return r.board === 'OTHER' || r.active === false; };
-      var groups = [['MAIN', list.filter(function (r) { return !isOther(r); })], ['OTHER', list.filter(isOther)]];
+      var groups = ['MAIN', 'OTHER', 'ZOOM'].map(function (g) { return [g, list.filter(function (r) { return groupOf(r) === g; })]; });
       groups.forEach(function (g) {
         if (!g[1].length) return;
         var og = U.el('optgroup', { label: t('board.group.' + g[0]) });
@@ -162,11 +184,12 @@ RB.bookingForm = (function () {
       });
     })();
     var dateIn = U.el('input.input', { type: 'date', name: 'date', value: initial.date, min: T.today(), max: maxDate, required: true });
-    var startSel = select('start', timeOptions(false), initial.startMin, function () {
+    var zoomInit = isZoomRes(initial.calendarId);
+    var startSel = select('start', timeOptions(false, zoomInit), initial.startMin, function () {
       // 시작을 바꾸면 종료를 시작+1h 로 따라가게 해 "종료가 시작보다 앞" 실수를 줄인다
-      var s = Number(startSel.value); if (Number(endSel.value) <= s) endSel.value = String(Math.min(s + 60, timeOptions(true).slice(-1)[0].value));
+      var s = Number(startSel.value); if (Number(endSel.value) <= s) endSel.value = String(Math.min(s + 60, timeOptions(true, isZoomRes(resSel.value)).slice(-1)[0].value));
     });
-    var endSel = select('end', timeOptions(true).slice(1), initial.endMin);
+    var endSel = select('end', timeOptions(true, zoomInit).slice(1), initial.endMin);
     if (edit) resSel.disabled = true;
     var titleIn = U.el('input.input', { type: 'text', name: 'title', required: true, maxLength: 80, placeholder: t('form.summary.ph'), value: edit ? edit.title || '' : '' });
     var gradeSel = select('grade', cfg().grades.map(function (g) { return { value: g.code, label: g.label || t('grade.' + g.code) }; }), cfg().grades[cfg().grades.length - 1].code);
@@ -182,6 +205,9 @@ RB.bookingForm = (function () {
     var recExtra = U.el('div.grid-2', null, [field('form.recurrence.until', untilIn), field('form.recurrence.count', countIn)]);
     recExtra.hidden = true;
 
+    var zoomHostIn = U.el('input.input', { type: 'email', name: 'zoomHost', placeholder: t('form.zoomHost.ph'), autocomplete: 'off' });
+    var zoomField = field('form.zoomHost', zoomHostIn, t('form.zoomHost.hint'));
+    var zoomNote = U.el('p.note', null, [t('form.zoomNote')]);
     var modeNote = U.el('p.note');
     function updateModeNote() {
       var r = list.filter(function (x) { return x.calendarId === resSel.value; })[0];
@@ -191,7 +217,18 @@ RB.bookingForm = (function () {
       modeNote.textContent = r && r.mode === 'APPROVAL' ? t(selfApprover ? 'form.approvalNoteSelf' : 'form.approvalNote') : '';
       modeNote.hidden = !modeNote.textContent;
     }
-    updateModeNote();
+    /** 장소가 바뀌면 모드 안내, Zoom 전용 입력 표시, 시간 선택지 범위(Zoom 24h / 일반)를 갱신한다. 편집 모드에서는 Zoom 입력을 숨긴다(편집은 호스트 변경 없음). */
+    function onResourceChange() {
+      updateModeNote();
+      var zoomOn = !edit && isZoomRes(resSel.value);
+      zoomField.hidden = !zoomOn;
+      zoomNote.hidden = !zoomOn;
+      if (!zoomOn) zoomHostIn.value = '';
+      var zoom = isZoomRes(resSel.value);
+      fillSelect(startSel, timeOptions(false, zoom), Number(startSel.value));
+      fillSelect(endSel, timeOptions(true, zoom).slice(1), Number(endSel.value));
+    }
+    onResourceChange();
 
     var errBox = U.el('p.error'); errBox.hidden = true;
     var submitBtn = U.el('button.btn.btn-primary', { type: 'submit' }, [t(edit ? 'btn.save' : 'btn.submit')]);
@@ -216,10 +253,11 @@ RB.bookingForm = (function () {
           .then(done);
       }
     }, [
-      field('form.resource', resSel), modeNote,
+      field('form.resource', resSel), modeNote, zoomNote,
       U.el('div.grid-3', null, [field('form.date', dateIn), field('form.start', startSel), field('form.end', endSel)]),
       field('form.summary', titleIn),
       field('form.guests', guests.node, t('form.guests.hint')),
+      zoomField,
       edit ? U.el('p.note', null, [t('form.editNote')]) : U.el('details.optional', null, [
         U.el('summary', null, [t('form.optional')]),
         U.el('div.grid-2', null, [field('form.grade', gradeSel), field('form.headcount', headIn)]),
@@ -240,6 +278,7 @@ RB.bookingForm = (function () {
         title: titleIn.value.trim(), grade: gradeSel.value,
         headcount: headIn.value ? Number(headIn.value) : null, note: noteIn.value.trim() || null,
         guests: guests.values(),
+        zoomHost: zoomField.hidden ? '' : zoomHostIn.value.trim().toLowerCase(),
         recurrence: rec
       };
     }
@@ -251,6 +290,7 @@ RB.bookingForm = (function () {
       if (!startUnchanged && new Date(p.start) < new Date()) return t('form.err.past');
       var bad = (p.guests || []).filter(function (g) { return !EMAIL_RE.test(g); });
       if (bad.length) return t('form.err.guests', { list: bad.join(', ') });
+      if (p.zoomHost && !EMAIL_RE.test(p.zoomHost)) return t('form.err.zoomHost');
       return null;
     }
 

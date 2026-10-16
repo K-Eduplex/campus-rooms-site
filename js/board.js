@@ -21,16 +21,31 @@ RB.board = (function () {
   var CACHE_MS = 5 * 60000;   // 서버가 30초 공유 캐시 + 쓰기 시 무효화를 하므로 브라우저는 5분 보관. 내 예약·취소는 로컬 즉시 반영
 
   function cfg() { return RB.app.state.config; }
-  /** 현재 그룹의 공간. MAIN = 활성 + Board≠OTHER. OTHER = Board=OTHER 이거나 비활성(관리용, D-24). */
+  /** @param {Object} r 장소 객체
+   * @returns {string} 'ZOOM' | 'OTHER' | 'MAIN'
+   * Config.gs boardGroupOf_ 와 같은 규칙. Zoom 은 활성 여부와 관계없이 자체 탭(D-28), 비활성 방은 Other spaces(D-24). */
+  function groupOf(r) {
+    if (r.kind === 'ZOOM' || r.board === 'ZOOM') return 'ZOOM';
+    if (r.board === 'OTHER' || r.active === false) return 'OTHER';
+    return 'MAIN';
+  }
+  /** Zoom 계정은 활성 상태이거나 해당 자원 담당자·최고 관리자에게만 보인다(private 테스트, D-28). */
+  function zoomVisible(r) {
+    return r.active !== false || canBook(r);
+  }
+  /** 현재 그룹의 공간. Zoom 은 zoomVisible 인 계정만 노출한다. */
   function resources() {
     return RB.app.state.resources.filter(function (r) {
       if (r.reservable === false) return false;
-      var other = r.board === 'OTHER' || r.active === false;
-      return state.group === 'OTHER' ? other : !other;
+      if (groupOf(r) !== state.group) return false;
+      return state.group !== 'ZOOM' || zoomVisible(r);
     });
   }
   function hasOtherGroup() {
-    return RB.app.state.resources.some(function (r) { return r.reservable !== false && (r.board === 'OTHER' || r.active === false); });
+    return RB.app.state.resources.some(function (r) { return r.reservable !== false && groupOf(r) === 'OTHER'; });
+  }
+  function hasZoomGroup() {
+    return RB.app.state.resources.some(function (r) { return r.reservable !== false && groupOf(r) === 'ZOOM' && zoomVisible(r); });
   }
   /** 비활성 공간을 예약할 수 있는가: 담당자·슈퍼 관리자만 */
   function canBook(r) {
@@ -38,9 +53,10 @@ RB.board = (function () {
     return r.active !== false || me.isSuperAdmin || (me.approverOf || []).indexOf(r.calendarId) !== -1;
   }
 
-  /** 표시 범위(분) */
+  /** 표시 범위(분). Zoom 탭은 24시간 기본값을 쓴다. T.parseHM('24:00') 은 1440 을 반환한다. */
   function range() {
-    var hm = (cfg().displayHours || '06:00-22:00').split('-');
+    var hours = state.group === 'ZOOM' ? (cfg().zoomDisplayHours || '00:00-24:00') : (cfg().displayHours || '06:00-22:00');
+    var hm = hours.split('-');
     return { from: T.parseHM(hm[0]), to: T.parseHM(hm[1]) };
   }
   function slotMin() { return cfg().slotMinutes || 30; }
@@ -70,7 +86,7 @@ RB.board = (function () {
     var wk = T.weekStart(T.dateKey(new Date(e.start)));
     // 그 방이 속한 그룹의 캐시에 넣는다
     var room = RB.app.state.resources.filter(function (r) { return r.calendarId === e.calendarId; })[0] || {};
-    var g = (room.board === 'OTHER' || room.active === false) ? 'OTHER' : 'MAIN';
+    var g = groupOf(room);
     var hit = weekCache[g + '|' + wk];
     if (hit) hit.data.events.push(e);
     if (g === state.group && wk === T.weekStart(state.date)) rerender();
@@ -143,9 +159,12 @@ RB.board = (function () {
       : T.fmtDate(T.weekStart(state.date), lang, true) + ' ~ ' + T.fmtDate(T.addDays(T.weekStart(state.date), 6), lang);
 
     var step = state.view === 'day' ? 1 : 7;
+    var tabs = [groupTab('MAIN')];
+    if (hasOtherGroup()) tabs.push(groupTab('OTHER'));
+    if (hasZoomGroup()) tabs.push(groupTab('ZOOM'));
     var bar = U.el('div.toolbar', null, [
       U.el('div.toolbar-group', null, [
-        hasOtherGroup() ? U.el('div.group-tabs', null, [groupTab('MAIN'), groupTab('OTHER')]) : null,
+        tabs.length > 1 ? U.el('div.group-tabs', null, tabs) : null,
         U.el('button.btn', { type: 'button', onclick: function () { state.date = T.today(); rerender(); } }, [t('btn.today')]),
         U.el('button.icon-btn', { type: 'button', 'aria-label': 'prev', onclick: function () { state.date = T.addDays(state.date, -step); rerender(); } }, ['‹']),
         U.el('input.date-input', { type: 'date', value: state.date, onchange: function (e) { if (e.target.value) { state.date = e.target.value; rerender(); } } }),
@@ -281,7 +300,7 @@ RB.board = (function () {
     var cls = 'event' + (ev.isMine ? '.mine' : '') + (ev.status === 'PENDING' ? '.pending' : '') + (ev.isPreempt ? '.preempt' : '') + (ev.warning ? '.warning' : '') + (ev.end < new Date() ? '.past' : '');
     var node = U.el('div.' + cls.replace(/^event/, 'event'), {
       style: { left: px(s - rg.from) + 'px', width: (px(e - s) - 2) + 'px' },
-      title: ev.title + ' · ' + (ev.organizerName || ev.requesterName || '') + (ev.warning ? ' ⚠' : ''),
+      title: (ev.status === 'PENDING' ? t('legend.pending') + ' · ' : '') + (ev.isMine ? t('legend.mine') + ' · ' : '') + ev.title + ' · ' + (ev.organizerName || ev.requesterName || '') + (ev.warning ? ' ⚠' : ''),
       onclick: function (evt) { evt.stopPropagation(); popover(ev, resource); }
     }, [U.el('span.event-title', null, [(ev.warning ? '⚠ ' : '') + ev.title])]);
     node.className = cls.split('.').join(' ');

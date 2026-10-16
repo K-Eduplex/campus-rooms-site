@@ -1,0 +1,83 @@
+/* K-Eduplex — generated from tokens.json. Do not edit by hand; edit tokens.json and regenerate. */
+:root, [data-theme="keduplex"] {
+  --brand: #4F7DB5;
+  --on-brand: #FFFFFF;
+  --highlight: #FFD200;
+  --on-highlight: #000000;
+  --support-1: #F7967F;
+  --support-2: #A578B7;
+  --canvas: #F6F3EC;
+  --surface: #FEFDF9;
+  --surface-sunken: #EDE8E4;
+  --line: #E5E1DA;
+  --control-border: #7C7C7C;
+  --ink: #3E2620;
+  --text: #000000;
+  --text-muted: #636468;
+  --action: #454648;
+  --action-strong: #242424;
+  --on-action: #FFFFFF;
+  --kicker: #436A99;
+  --logo-blue: #4F7DB5;
+  --logo-yellow: #FFD200;
+  --logo-coral: #F7967F;
+  --logo-purple: #A578B7;
+  --logo-cyan: #54CFEA;
+  --logo-green: #87C860;
+  --success: #2F6B3A;
+  --warning: #8A5A00;
+  --danger: #893664;
+  --info: #2B3B8D;
+  --shadow-card: 0 8px 24px rgba(62, 38, 32, 0.08);
+  --shadow-overlay: 0 16px 40px rgba(36, 36, 36, 0.18);
+}
+[data-theme="mclc"] {
+  --brand: #D73939;
+  --highlight: #EEED5D;
+  --support-1: #78B5CB;
+  --support-2: #72675D;
+}
+[data-theme="cga"] {
+  --brand: #2B3B8D;
+  --highlight: #84BD60;
+  --support-1: #893664;
+  --support-2: #6A6B6F;
+}
+[data-theme="jiu"] {
+  --brand: #242E6D;
+  --highlight: #EABD2C;
+  --support-1: #69A94F;
+  --support-2: #79538A;
+}
+[data-theme="blc"] {
+  --brand: #893075;
+  --highlight: #7C7C7C;
+  --support-1: #6698A1;
+  --support-2: #93AD53;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+  --font-heading: Poppins, "Noto Sans KR", system-ui, sans-serif;
+  --font-body: "Noto Sans", "Noto Sans KR", system-ui, sans-serif;
+}
+.massive-heading { font-family: var(--font-heading); font-size: 48px; line-height: 56px; font-weight: 700; letter-spacing: -0.01em; }
+.heading-1 { font-family: var(--font-heading); font-size: 32px; line-height: 40px; font-weight: 500; }
+.heading-2 { font-family: var(--font-heading); font-size: 24px; line-height: 32px; font-weight: 500; }
+.heading-3 { font-family: var(--font-heading); font-size: 18px; line-height: 26px; font-weight: 600; }
+.kicker { font-family: var(--font-heading); font-size: 13px; line-height: 18px; font-weight: 500; }
+.body-lg { font-family: var(--font-body); font-size: 18px; line-height: 28px; font-weight: 400; }
+.body { font-family: var(--font-body); font-size: 16px; line-height: 26px; font-weight: 400; }
+.body-sm { font-family: var(--font-body); font-size: 14px; line-height: 22px; font-weight: 400; }
+.label { font-family: var(--font-body); font-size: 14px; line-height: 20px; font-weight: 600; }
+.caption { font-family: var(--font-body); font-size: 12px; line-height: 18px; font-weight: 400; }

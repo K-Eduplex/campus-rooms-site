@@ -26,6 +26,7 @@ RB.mock = (function () {
   var CONFIG = {
     slotMinutes: 30,
     displayHours: '07:00-21:00',
+    zoomDisplayHours: '00:00-24:00',
     maxAdvanceDays: 180,
     protectHours: 12,
     businessHours: '07:00-19:00',
@@ -49,7 +50,9 @@ RB.mock = (function () {
     { calendarId: 'r-m310', name: 'M310', aliases: [], mode: 'AUTO', kind: 'ROOM', reservable: true, capacity: 40, sortOrder: 5, approvers: ['teacher@cga.sch.id'] },
     { calendarId: 'r-d313', name: 'D313', aliases: ['Manna Hall'], mode: 'APPROVAL', kind: 'ROOM', reservable: true, capacity: 200, sortOrder: 6, approvers: ['teacher@cga.sch.id'] },
     { calendarId: 'r-mb01', name: 'MB01', aliases: ['Basement studio'], mode: 'AUTO', kind: 'ROOM', reservable: true, capacity: 15, sortOrder: 7, approvers: ['admin@k-eduplex.net'], board: 'OTHER', active: true },
-    { calendarId: 'r-u101', name: 'U101', aliases: [], mode: 'AUTO', kind: 'ROOM', reservable: true, capacity: 12, sortOrder: 8, approvers: ['admin@k-eduplex.net'], board: 'OTHER', active: false }
+    { calendarId: 'r-u101', name: 'U101', aliases: [], mode: 'AUTO', kind: 'ROOM', reservable: true, capacity: 12, sortOrder: 8, approvers: ['admin@k-eduplex.net'], board: 'OTHER', active: false },
+    { calendarId: 'r-zoom-blc', name: 'Zoom · BLC', aliases: [], mode: 'APPROVAL', kind: 'ZOOM', reservable: true, capacity: null, sortOrder: 20, approvers: ['admin@k-eduplex.net'], board: 'ZOOM', active: true },
+    { calendarId: 'r-zoom-adm', name: '[준비중] Zoom · Admission', aliases: [], mode: 'APPROVAL', kind: 'ZOOM', reservable: true, capacity: null, sortOrder: 21, approvers: ['teacher@cga.sch.id'], board: 'ZOOM', active: false }
   ];
 
   // ---- 가짜 디렉터리 (참석자 자동완성) --------------------------------------
@@ -89,6 +92,7 @@ RB.mock = (function () {
     ev('r-m303', 2, 14, 16, 'Video production class', 'minji.kim@jiu.ac', 'Minji Kim', 'CONFIRMED', 'CLASS');
     ev('r-m310', 3, 13, 15, 'Parent workshop', 'teacher@cga.sch.id', 'Budi Santoso', 'CONFIRMED', 'MEETING');
     ev('r-m103', 4, 9, 11, 'Admissions info session prep', 'admin@k-eduplex.net', 'Admin', 'CONFIRMED', 'OFFICIAL');
+    ev('r-zoom-blc', 1, 20, 21.5, 'Evening language class', 'blc.staff@k-eduplex.net', 'BLC staff', 'CONFIRMED', 'CLASS');
 
     var pendingEv = events.filter(function (e) { return e.status === 'PENDING'; })[0];
     requests.push({
@@ -180,7 +184,13 @@ RB.mock = (function () {
     board: function (p) {
       var from = new Date(p.from), to = new Date(p.to);
       var g = String(p.group || 'MAIN').toUpperCase();
-      var inGroup = function (id) { var r = res(id) || {}; var other = r.board === 'OTHER' || r.active === false; return g === 'ALL' ? true : (g === 'OTHER' ? other : !other); };
+      // 백엔드 boardGroupOf_ 와 같은 규칙
+      var groupOf = function (r) {
+        if (r.kind === 'ZOOM' || r.board === 'ZOOM') return 'ZOOM';
+        if (r.board === 'OTHER' || r.active === false) return 'OTHER';
+        return 'MAIN';
+      };
+      var inGroup = function (id) { return g === 'ALL' || groupOf(res(id) || {}) === g; };
       var list = events.filter(function (e) { return inGroup(e.calendarId) && T.overlaps(from, to, e.start, e.end); }).map(serialize);
       var pend = requests.filter(function (r) {
         return (r.status === 'PENDING' || r.status === 'ESCALATED') && r.type === 'PREEMPT' && T.overlaps(from, to, r.start, r.end);
@@ -189,6 +199,7 @@ RB.mock = (function () {
     },
 
     book: function (p) {
+      // p.zoomHost 는 데모에서 받기만 하고 무시한다(실제 백엔드가 host key 메일을 보낸다).
       var r = res(p.calendarId);
       if (!r) return fail('BAD_REQUEST', 'unknown room');
       var occ = expand(p);
@@ -203,7 +214,9 @@ RB.mock = (function () {
         var alternatives = [];
         // 같은 장소 다음 빈 시간
         var dur = first.end - first.start, probe = new Date(first.end.getTime());
-        for (var i = 0; i < 12 && alternatives.length < 1; i++) {
+        // Zoom 은 24시간(30분 칸 48개) 안에서 찾는다(D-28).
+        var probes = r.kind === 'ZOOM' ? 48 : 12;
+        for (var i = 0; i < probes && alternatives.length < 1; i++) {
           if (!conflictsFor(r.calendarId, probe, new Date(probe.getTime() + dur)).length) {
             alternatives.push({ calendarId: r.calendarId, resourceName: r.name, start: probe.toISOString(), end: new Date(probe.getTime() + dur).toISOString() });
           }
@@ -211,7 +224,10 @@ RB.mock = (function () {
         }
         // 같은 시간 다른 장소
         RESOURCES.forEach(function (o) {
-          if (o.calendarId !== r.calendarId && o.mode === 'AUTO' && alternatives.length < 3 && !conflictsFor(o.calendarId, first.start, first.end).length) {
+          // 같은 종류만: Zoom 계정끼리, 방끼리(방은 자동 수락 방만, D-28)
+          var sameKind = (o.kind === 'ZOOM') === (r.kind === 'ZOOM');
+          var modeOk = r.kind === 'ZOOM' || o.mode === 'AUTO';
+          if (o.calendarId !== r.calendarId && o.active !== false && sameKind && modeOk && alternatives.length < 3 && !conflictsFor(o.calendarId, first.start, first.end).length) {
             alternatives.push({ calendarId: o.calendarId, resourceName: o.name, start: first.start.toISOString(), end: first.end.toISOString() });
           }
         });
@@ -222,7 +238,8 @@ RB.mock = (function () {
         });
       }
 
-      if (r.mode === 'APPROVAL' && !isApprover(r)) {   // D-26: 담당자 본인은 바로 확정
+      var needsApproval = r.mode === 'APPROVAL' || r.kind === 'ZOOM';   // Zoom 은 승인 방과 같이 취급
+      if (needsApproval && !isApprover(r)) {   // D-26: 담당자 본인은 바로 확정
         var evp = pushEvents(r, p, occ, 'PENDING');
         var rq = pushRequest('BOOK', r, p, occ[0], evp[0]);
         return delay({ kind: 'PENDING', request: serialize(rq) });

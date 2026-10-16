@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="keduplex">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,7 +7,11 @@
   <!--
     [help.html] — 사용자 매뉴얼(영어, D-12). 정적 페이지. 정책이 바뀌면 이 페이지도 고친다(D-07/08/09/21/22).
   -->
-  <link rel="stylesheet" href="css/app.css?v=19d8fc3">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/tokens.css?v=2118efa">
+  <link rel="stylesheet" href="css/app.css?v=2118efa">
   <style>
     .doc { max-width: 760px; margin: 28px auto; padding: 0 20px 60px; line-height: 1.6; }
     .doc h1 { font-size: 24px; margin-bottom: 4px; }
@@ -17,11 +21,11 @@
     .doc li { margin: 3px 0; }
     .doc table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0 12px; }
     .doc th, .doc td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    .doc th { color: var(--muted); font-weight: 500; width: 32%; }
-    .doc .toc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 18px; }
+    .doc th { color: var(--text-muted); font-weight: 500; width: 32%; }
+    .doc .toc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 18px; }
     .doc .toc a { display: block; padding: 2px 0; }
-    .doc kbd { background: #eef0f3; border-radius: 4px; padding: 1px 6px; font-size: 12px; }
-    .doc .tip { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; border-radius: 8px; padding: 8px 12px; margin: 8px 0; }
+    .doc kbd { background: var(--surface-sunken); border-radius: 4px; padding: 1px 6px; font-size: 12px; }
+    .doc .tip { background: color-mix(in srgb, var(--brand) 12%, var(--surface)); border: 1px solid var(--line); color: var(--ink); border-radius: var(--radius-sm); padding: 8px 12px; margin: 8px 0; }
   </style>
 </head>
 <body>
