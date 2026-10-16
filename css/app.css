@@ -90,6 +90,7 @@ button, input, select, textarea { font-family: inherit; }
 .seg { border: 1px solid var(--control-border); background: var(--surface); color: var(--ink); padding: 6px 12px; cursor: pointer; font-size: 13px; }
 .seg:first-of-type { border-radius: var(--radius-pill) 0 0 var(--radius-pill); }
 .seg + .seg { border-left: 0; border-radius: 0 var(--radius-pill) var(--radius-pill) 0; }
+.group-tabs .seg:not(:first-of-type):not(:last-of-type) { border-radius: 0; }
 .seg.active { background: color-mix(in srgb, var(--brand) 22%, var(--surface)); color: var(--ink); font-weight: 600; }
 .input, .select, .date-input { border: 1px solid var(--control-border); border-radius: var(--radius-sm); padding: 7px 10px; font-size: 16px; background: var(--surface); color: var(--text); width: 100%; font-family: inherit; }
 .date-input { width: auto; }

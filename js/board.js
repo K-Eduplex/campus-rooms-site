@@ -313,7 +313,7 @@ RB.board = (function () {
     var me = RB.app.state.user;
     var isPast = ev.end < new Date();
     var canCancel = !isPast && !ev.isPreempt && (ev.isMine || me.isSuperAdmin || me.approverOf.indexOf(resource.calendarId) !== -1);
-    var canPreempt = !isPast && !ev.isMine && !ev.isPreempt && resource.mode === 'AUTO' && ev.status === 'CONFIRMED';
+    var canPreempt = !isPast && !ev.isMine && !ev.isPreempt && resource.kind !== 'ZOOM' && resource.mode === 'AUTO' && ev.status === 'CONFIRMED';
 
     var body = U.el('div', null, [
       U.el('div.kv', null, [U.el('b', null, [resource.name]), ' · ', T.fmtRange(ev.start, ev.end, lang)]),
