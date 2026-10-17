@@ -49,7 +49,7 @@ button, input, select, textarea { font-family: inherit; }
 .tab { border: 0; background: none; padding: 8px 12px; font-size: 14px; color: var(--text-muted); border-bottom: 2px solid transparent; cursor: pointer; }
 .tab.active { color: var(--ink); border-bottom-color: var(--brand); font-weight: 600; }
 .tab-badge { display: inline-block; margin-left: 6px; font-size: 12px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--highlight) 22%, var(--surface)); color: var(--ink); font-weight: 600; }
-.settings { max-width: 720px; display: grid; gap: 14px; }
+.settings { max-width: 720px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .settings .card h3 { margin-top: 0; }
 .kv-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .kv-table td { padding: 5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -57,6 +57,11 @@ button, input, select, textarea { font-family: inherit; }
 .kv-table.perf th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 5px 6px; border-bottom: 1px solid var(--line); }
 .kv-table.perf td { padding: 4px 6px; width: auto; font-variant-numeric: tabular-nums; }
 .kv-table.perf td:first-child { width: auto; color: var(--text); }
+.table-scroll { overflow-x: auto; }
+.kv-table.usage td, .kv-table.usage th { white-space: nowrap; }
+.kv-table.usage th { text-align: right; }
+.kv-table.usage th:first-child, .kv-table.usage td:first-child { text-align: left; }
+.kv-table.usage td { text-align: right; }
 .check-list { margin: 8px 0 0; padding-left: 18px; }
 .check-list .ok { color: var(--success); }
 .check-list .bad { color: var(--danger); }

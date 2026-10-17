@@ -21,6 +21,7 @@ RB.mock = (function () {
     admin: { email: 'admin@k-eduplex.net', name: 'Admin', roleKey: 'login.mock.admin' }
   };
   var me = null;
+  var zoomUsageLoaded = false; // Zoom 사용량 mock: 첫 호출 뒤에는 캐시된 결과처럼 표시
 
   // ---- 설정 (백엔드 Config 시트에 해당) ------------------------------------
   var CONFIG = {
@@ -401,6 +402,61 @@ RB.mock = (function () {
         { ok: false, label: 'Chat webhook configured', detail: 'CHAT_WEBHOOK_URL is empty — announcements are off' },
         { ok: true, label: 'Time triggers installed', detail: 'sync 5 min, sweep 15 min' }
       ] });
+    },
+
+    // Zoom 사용량 mock: 최근 개월/계정/동시 사용량 보고서를 만든다.
+    zoomUsage: function (p) {
+      if (me.email !== 'admin@k-eduplex.net') return fail('FORBIDDEN', 'super admin only');
+      var now = new Date();
+      var y = now.getFullYear();
+      var m = now.getMonth() + 1;
+      var idx = y * 12 + (m - 1);
+      var monthsList = [];
+      var unavailable = [];
+      for (var j = 11; j >= 0; j--) {
+        var cur = idx - j;
+        var yy = Math.floor(cur / 12);
+        var mm = (cur % 12) + 1;
+        var monthStr = yy + '-' + (mm < 10 ? '0' + mm : mm);
+        if (j >= 6) {
+          unavailable.push(monthStr);
+        } else {
+          monthsList.push(monthStr);
+        }
+      }
+      var accounts = ['academic2@k-eduplex.net', 'blc@k-eduplex.net', 'cga@k-eduplex.net', 'jiu.academic3@k-eduplex.net', 'official@jiu.ac'].sort();
+      var perAccountMonth = {};
+      accounts.forEach(function (email, a) {
+        perAccountMonth[email] = {};
+        monthsList.forEach(function (month, i) {
+          var meetings = (a * 3 + i * 2 + (email.length % 4)) % 15;
+          var hours = Math.round(meetings * 1.4 * 10) / 10;
+          var days = Math.max(0, Math.min(meetings, 5 + i));
+          var avgParticipants = Math.round((2 + ((a + i) % 17)) * 10) / 10;
+          perAccountMonth[email][month] = { meetings: meetings, hours: hours, days: days, avgParticipants: avgParticipants };
+        });
+      });
+      var curMonth = monthsList[monthsList.length - 1];
+      var d1 = curMonth + '-03';
+      var d2 = curMonth + '-08';
+      var d3 = curMonth + '-12';
+      var d4 = curMonth + '-17';
+      var d5 = curMonth + '-22';
+      var result = {
+        generatedAt: now.toISOString(),
+        accounts: accounts,
+        months: monthsList,
+        perAccountMonth: perAccountMonth,
+        concurrency: {
+          max: 4,
+          minutesAtLeast: { 1: 9000, 2: 2400, 3: 390, 4: 60 },
+          daysAtLeast: { 3: [d1, d2, d3, d4, d5], 4: [d3] }
+        },
+        unavailableMonths: unavailable,
+        fromCache: !(p && p.refresh) && zoomUsageLoaded
+      };
+      zoomUsageLoaded = true;
+      return delay(result);
     },
 
     reject: function (p) {

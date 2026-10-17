@@ -83,6 +83,7 @@ RB.settings = (function () {
           ]);
         }))
       ]),
+      zoomUsageCard(),
       U.el('div.card', null, [
         U.el('h3', null, [t('settings.policy')]),
         U.el('table.kv-table', null, [
@@ -143,6 +144,108 @@ RB.settings = (function () {
       ]));
     });
     return tbl;
+  }
+
+  /**
+   * Zoom 계정 사용량 카드를 렌더링한다.
+   * 첫 로드와 새로고침 버튼을 제공하고, API 응답을 표로 보여준다.
+   */
+  function zoomUsageCard() {
+    var out = U.el('div');
+    var loadBtn, refreshBtn;
+
+    /**
+     * Zoom 사용량 API 응답을 표시한다.
+     * @param {Object} data zoomUsage API 응답
+     */
+    function showResult(data) {
+      U.clear(out);
+      var acc = data.accounts || [], c = data.concurrency, months = data.months || [];
+      var h4 = (c.minutesAtLeast[4] || 0) / 60;
+      var days4 = c.daysAtLeast[4] || [];
+      var verdictClass = h4 === 0 ? 'p' : 'p.error';
+      var verdictText = h4 === 0
+        ? t('settings.zoomUsage.verdict.ok', { months: months.length })
+        : t('settings.zoomUsage.verdict.check', { hours: h4.toFixed(1), days: days4.length, dates: days4.slice(0, 10).join(', ') });
+      out.appendChild(U.el(verdictClass, null, [verdictText]));
+
+      function hrs(n) { return ((c.minutesAtLeast[n] || 0) / 60).toFixed(1); }
+      function dcount(n) { return (c.daysAtLeast[n] || []).length; }
+      out.appendChild(U.el('p.muted', null, [t('settings.zoomUsage.summary', {
+        max: c.max, h3: hrs(3), d3: dcount(3), h4: hrs(4), d4: dcount(4), h5: hrs(5), d5: dcount(5)
+      })]));
+      out.appendChild(U.el('p.muted', null, [t('settings.zoomUsage.cell')]));
+
+      var headerCells = [U.el('th', null, [t('settings.zoomUsage.month')])];
+      acc.forEach(function (email) {
+        headerCells.push(U.el('th', null, [email.split('@')[0]]));
+      });
+      var rows = [U.el('tr', null, headerCells)];
+
+      months.slice().reverse().forEach(function (month) {
+        var cells = [U.el('td', null, [month])];
+        acc.forEach(function (email) {
+          var pam = data.perAccountMonth[email] || {};
+          var rec = pam[month] || {};
+          var meetings = rec.meetings || 0;
+          var hours = rec.hours || 0;
+          cells.push(U.el('td', null, [meetings + ' / ' + hours]));
+        });
+        rows.push(U.el('tr', null, cells));
+      });
+
+      var totalCells = [U.el('th', null, [t('settings.zoomUsage.total')])];
+      acc.forEach(function (email) {
+        var pam = data.perAccountMonth[email] || {};
+        var meetings = 0;
+        var hours = 0;
+        months.forEach(function (month) {
+          var rec = pam[month] || {};
+          meetings += rec.meetings || 0;
+          hours += Number(rec.hours) || 0;
+        });
+        var roundedHours = Math.round(hours * 10) / 10;
+        totalCells.push(U.el('td', null, [meetings + ' / ' + roundedHours]));
+      });
+      rows.push(U.el('tr', null, totalCells));
+
+      var tbl = U.el('table.kv-table.perf.usage', null, rows);
+      out.appendChild(U.el('div.table-scroll', null, [tbl]));
+
+      var u = data.unavailableMonths || [];
+      if (u.length) {
+        out.appendChild(U.el('p.muted', null, [t('settings.zoomUsage.unavailable', { from: u[0], to: u[u.length - 1] })]));
+      }
+      out.appendChild(U.el('p.muted', null, [t('settings.zoomUsage.generated', { at: RB.time.fmtDateTime(new Date(data.generatedAt), RB.i18n.get()) }) + (data.fromCache ? ' ' + t('settings.zoomUsage.cached') : '')]));
+      refreshBtn.style.display = '';
+    }
+
+    /**
+     * Zoom 사용량 API를 호출하고 두 버튼을 잠근다.
+     * @param {Object} params 빈 객체 또는 { refresh: true }
+     * @param {HTMLElement} btn 클릭된 버튼
+     */
+    function load(params, btn) {
+      loadBtn.disabled = true;
+      refreshBtn.disabled = true;
+      var done = U.busy(btn);
+      RB.api.call('zoomUsage', params).then(showResult)
+        .catch(function (err) { U.toast(t('result.error', { message: err.message || err.code }), 'error'); })
+        .then(function () {
+          loadBtn.disabled = false;
+          refreshBtn.disabled = false;
+          done();
+        });
+    }
+
+    loadBtn = U.el('button.btn', { type: 'button', onclick: function () { load({}, loadBtn); } }, [t('settings.zoomUsage.load')]);
+    refreshBtn = U.el('button.btn', { type: 'button', style: { display: 'none' }, onclick: function () { load({ refresh: true }, refreshBtn); } }, [t('settings.zoomUsage.refresh')]);
+
+    return U.el('div.card', null, [
+      U.el('h3', null, [t('settings.zoomUsage')]),
+      U.el('p.muted', null, [t('settings.zoomUsage.hint')]),
+      U.el('div.actions', { style: { justifyContent: 'flex-start' } }, [loadBtn, refreshBtn]), out
+    ]);
   }
 
   function kv(key, value) {
