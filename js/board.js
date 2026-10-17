@@ -56,6 +56,8 @@ RB.board = (function () {
     weekCache = {};
     inflight = {};
     refreshing = 0;
+    state.events = [];   // 이전 사용자의 화면 데이터가 남지 않게
+    state.pending = [];
     try {
       var key = STORE_PREFIX + String(email || '').toLowerCase();
       var raw = localStorage[key];
@@ -78,6 +80,9 @@ RB.board = (function () {
     weekCache = {};
     inflight = {};
     refreshing = 0;
+    groupsPrefetched = false;
+    state.events = [];
+    state.pending = [];
     try {
       Object.keys(localStorage).forEach(function (k) {
         if (k.indexOf(STORE_PREFIX) === 0) localStorage.removeItem(k);
@@ -133,22 +138,26 @@ RB.board = (function () {
     var fromKey = T.weekStart(state.date);
     return { from: T.make(fromKey, 0).toISOString(), to: T.make(T.addDays(fromKey, 7), 0).toISOString(), group: state.group, weekKey: state.group + '|' + fromKey };
   }
-  function initialRange() { var r = currentRange(); return { from: r.from, to: r.to, group: r.group }; }
+  function initialRange() { return currentRange(); }   // weekKey 포함: init 응답 캐시 키를 요청한 주에 맞춘다
 
   /** init 응답에 실려 온 첫 현황판 데이터(이번 주, MAIN 그룹). 캐시에 넣는다. */
-  // init 응답을 현재 주 캐시로 저장하고, 기다리던 load()를 풀어준다.
+  /** weekKey 가 없는 구간의 캐시 키: 그룹 + 시작 날짜가 속한 주 */
+  function rangeKey(r) { return (r.group || 'MAIN') + '|' + T.weekStart(T.dateKey(new Date(r.from))); }
+
+  // init 응답을 요청한 주 캐시로 저장하고, 기다리던 load()를 풀어준다.
   function preload(range, data) {
-    var key = (range.group || 'MAIN') + '|' + T.weekStart(state.date);
+    var key = range.weekKey || rangeKey(range);   // 화면에 보이는 주가 아니라 요청한 주
     weekCache[key] = { data: data, at: Date.now() };
     persist();
-    if (!pendingInit || pendingInit.key !== key) return;
+    if (!pendingInit) return;
+    if (pendingInit.key !== key) { releasePreload(); return; }   // 기다리던 주와 다르면 대기자를 풀어 준다
     var pi = pendingInit;
     pendingInit = null;
     refreshing--;
     if (pi.waiters.length > 0) {
       pi.waiters.forEach(function (w) { w.resolve(data); });
       syncIndicator();
-    } else if (RB.app.state.tab === 'board') {
+    } else if (RB.app.state.tab === 'board' && currentRange().weekKey === key) {
       rerender();
     } else {
       syncIndicator();
@@ -157,7 +166,7 @@ RB.board = (function () {
 
   // init 응답이 현재 주를 갱신할 예정임을 표시해 같은 요청이 두 번 가지 않게 한다.
   function expectPreload(range) {
-    pendingInit = { key: (range.group || 'MAIN') + '|' + T.weekStart(state.date), waiters: [] };
+    pendingInit = { key: range.weekKey || rangeKey(range), waiters: [] };
     refreshing++;
     syncIndicator();
   }
@@ -202,7 +211,7 @@ RB.board = (function () {
     var hit = weekCache[g + '|' + wk];
     if (hit) hit.data.events.push(e);
     persist();
-    if (g === state.group && wk === T.weekStart(state.date)) rerender();
+    if (RB.app.state.tab === 'board' && g === state.group && wk === T.weekStart(state.date)) rerender();
   }
 
   /** 취소한 예약을 화면에서 바로 지운다 */
@@ -213,7 +222,7 @@ RB.board = (function () {
       d.pending = (d.pending || []).filter(function (p) { return p.requestId !== eventId; });
     });
     persist();
-    rerender();
+    if (RB.app.state.tab === 'board') rerender();
   }
 
   /** 지금 주의 앞뒤 주를 백그라운드로 받아 둔다(날짜 이동을 기다리지 않게) */
@@ -223,16 +232,9 @@ RB.board = (function () {
       var key = g + '|' + k;
       var hit = weekCache[key];
       if (hit && (hit.stale || Date.now() - hit.at < CACHE_MS)) return;
-      var ep = epoch;
-      weekCache[key] = { data: { events: [], pending: [] }, at: 0, loading: true };
-      RB.api.call('board', { from: T.make(k, 0).toISOString(), to: T.make(T.addDays(k, 7), 0).toISOString(), group: g })
-        .then(function (data) {
-          if (ep === epoch) {
-            weekCache[key] = { data: data, at: Date.now() };
-            persist();
-          }
-        })
-        .catch(function () { if (ep === epoch) delete weekCache[key]; });
+      // fetchWeek 가 중복 요청(inflight)을 막고 응답을 캐시·저장한다
+      fetchWeek({ from: T.make(k, 0).toISOString(), to: T.make(T.addDays(k, 7), 0).toISOString(), group: g, weekKey: key })
+        .catch(function () { /* 미리 받기 실패는 무시 */ });
     });
   }
 
@@ -365,9 +367,9 @@ RB.board = (function () {
       U.el('div.toolbar-group', null, [
         tabs.length > 1 ? U.el('div.group-tabs', null, tabs) : null,
         U.el('button.btn', { type: 'button', onclick: function () { state.date = T.today(); rerender(); } }, [t('btn.today')]),
-        U.el('button.icon-btn', { type: 'button', 'aria-label': 'prev', onclick: function () { state.date = T.addDays(state.date, -step); rerender(); } }, ['‹']),
-        U.el('input.date-input', { type: 'date', value: state.date, onchange: function (e) { if (e.target.value) { state.date = e.target.value; rerender(); } } }),
-        U.el('button.icon-btn', { type: 'button', 'aria-label': 'next', onclick: function () { state.date = T.addDays(state.date, step); rerender(); } }, ['›']),
+        U.el('button.icon-btn', { type: 'button', 'aria-label': t('board.prev'), onclick: function () { state.date = T.addDays(state.date, -step); rerender(); } }, ['‹']),
+        U.el('input.date-input', { type: 'date', 'aria-label': t('board.date'), value: state.date, onchange: function (e) { if (e.target.value) { state.date = e.target.value; rerender(); } } }),
+        U.el('button.icon-btn', { type: 'button', 'aria-label': t('board.next'), onclick: function () { state.date = T.addDays(state.date, step); rerender(); } }, ['›']),
         U.el('span.toolbar-label', null, [label]),
         refreshing > 0 ? U.el('span.muted.board-updating', { role: 'status' }, [t('board.updating')]) : null
       ]),
@@ -393,7 +395,7 @@ RB.board = (function () {
   }
 
   function resourcePicker() {
-    var sel = U.el('select.select', { onchange: function (e) { state.weekResource = e.target.value; rerender(); } });
+    var sel = U.el('select.select', { 'aria-label': t('board.room'), onchange: function (e) { state.weekResource = e.target.value; rerender(); } });
     resources().forEach(function (r) {
       sel.appendChild(U.el('option', { value: r.calendarId, selected: r.calendarId === currentWeekResource() }, [r.name]));
     });
@@ -425,12 +427,13 @@ RB.board = (function () {
   function dayGrid() {
     var grid = U.el('div.grid');
     grid.appendChild(row(U.el('div.row-label.row-label-head', null, ['']), timeHeader()));
+    var dayFrom = T.make(state.date, 0), dayTo = T.make(T.addDays(state.date, 1), 0);
     resources().forEach(function (r) {
       var label = U.el('div.row-label' + (r.active === false ? '.is-inactive' : ''), { title: r.mode === 'APPROVAL' ? t('mode.APPROVAL') : '' }, [
         U.el('div.row-name', null, [r.name, r.mode === 'APPROVAL' ? U.el('span.approval-mark', null, ['*']) : null, r.active === false ? U.el('span.badge', { style: { marginLeft: '6px' } }, [t('board.inactive')]) : null]),
         U.el('div.row-sub', null, [[(r.aliases || []).join(', '), r.capacity ? String(r.capacity) : ''].filter(String).join(' · ')])
       ]);
-      var evs = state.events.filter(function (e) { return e.calendarId === r.calendarId && T.dateKey(e.start) === state.date; });
+      var evs = state.events.filter(function (e) { return e.calendarId === r.calendarId && T.overlaps(e.start, e.end, dayFrom, dayTo); });   // 자정을 넘기는 예약도 포함(block() 이 잘라 그림)
       grid.appendChild(row(label, track(r, state.date, evs)));
     });
     return grid;
@@ -445,10 +448,11 @@ RB.board = (function () {
     var start = T.weekStart(state.date);
     for (var i = 0; i < 7; i++) {
       var key = T.addDays(start, i);
+      var dayFrom = T.make(key, 0), dayTo = T.make(T.addDays(key, 1), 0);
       var label = U.el('div.row-label' + (key === T.today() ? '.is-today' : ''), null, [
         U.el('div.row-name', null, [T.fmtDate(key, RB.i18n.get())])
       ]);
-      var evs = state.events.filter(function (e) { return e.calendarId === rid && T.dateKey(e.start) === key; });
+      var evs = state.events.filter(function (e) { return e.calendarId === rid && T.overlaps(e.start, e.end, dayFrom, dayTo); });
       grid.appendChild(row(label, track(r, key, evs)));
     }
     return grid;
@@ -487,7 +491,7 @@ RB.board = (function () {
 
     evs.forEach(function (ev) { node.appendChild(block(ev, resource, dateKey, rg)); });
     // 선점 대기 요청은 빗금 테두리로 얹는다 (승인되면 기존 예약이 밀려남을 예고)
-    state.pending.filter(function (q) { return q.calendarId === resource.calendarId && T.dateKey(q.start) === dateKey; })
+    state.pending.filter(function (q) { return q.calendarId === resource.calendarId && T.overlaps(q.start, q.end, T.make(dateKey, 0), T.make(T.addDays(dateKey, 1), 0)); })
       .forEach(function (q) { node.appendChild(block(Object.assign({}, q, { status: 'PENDING', isPreempt: true }), resource, dateKey, rg)); });
     return node;
   }
@@ -495,16 +499,21 @@ RB.board = (function () {
   function block(ev, resource, dateKey, rg) {
     var s = Math.max(T.minutesOfDay(ev.start), rg.from);
     var e = T.dateKey(ev.end) === dateKey ? Math.min(T.minutesOfDay(ev.end), rg.to) : rg.to;
-    if (T.dateKey(ev.start) !== dateKey) s = rg.from;
+    if (T.dateKey(ev.start) !== dateKey) s = rg.from;   // 전날부터 이어진 예약은 왼쪽 끝에서 시작
     if (e <= s) return U.el('span');
-    var cls = 'event' + (ev.isMine ? '.mine' : '') + (ev.status === 'PENDING' ? '.pending' : '') + (ev.isPreempt ? '.preempt' : '') + (ev.warning ? '.warning' : '') + (ev.end < new Date() ? '.past' : '');
-    var node = U.el('div.' + cls.replace(/^event/, 'event'), {
+    var cls = ['event', ev.isMine ? 'mine' : '', ev.status === 'PENDING' ? 'pending' : '', ev.isPreempt ? 'preempt' : '', ev.warning ? 'warning' : '', ev.end < new Date() ? 'past' : ''].filter(Boolean).join(' ');
+    var open = function (evt) { evt.stopPropagation(); popover(ev, resource); };
+    return U.el('div', {
+      className: cls,
+      role: 'button',
+      tabindex: 0,
       style: { left: px(s - rg.from) + 'px', width: (px(e - s) - 2) + 'px' },
       title: (ev.status === 'PENDING' ? t('legend.pending') + ' · ' : '') + (ev.isMine ? t('legend.mine') + ' · ' : '') + ev.title + ' · ' + (ev.organizerName || ev.requesterName || '') + (ev.warning ? ' ⚠' : ''),
-      onclick: function (evt) { evt.stopPropagation(); popover(ev, resource); }
+      onclick: open,
+      onkeydown: function (evt) {
+        if (evt.key === 'Enter' || evt.key === ' ') { evt.preventDefault(); open(evt); }
+      }
     }, [U.el('span.event-title', null, [(ev.warning ? '⚠ ' : '') + ev.title])]);
-    node.className = cls.split('.').join(' ');
-    return node;
   }
 
   /** 일정 상세 */
@@ -512,7 +521,7 @@ RB.board = (function () {
     var lang = RB.i18n.get();
     var me = RB.app.state.user;
     var isPast = ev.end < new Date();
-    var canCancel = !isPast && !ev.isPreempt && (ev.isMine || me.isSuperAdmin || me.approverOf.indexOf(resource.calendarId) !== -1);
+    var canCancel = !isPast && !ev.isPreempt && (ev.isMine || me.isSuperAdmin || (me.approverOf || []).indexOf(resource.calendarId) !== -1);
     var canPreempt = !isPast && !ev.isMine && !ev.isPreempt && resource.kind !== 'ZOOM' && resource.mode === 'AUTO' && ev.status === 'CONFIRMED';
 
     var body = U.el('div', null, [

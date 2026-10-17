@@ -138,8 +138,14 @@ RB.bookingForm = (function () {
 
   function select(name, options, selected, onchange) {
     var sel = U.el('select.select', { name: name, onchange: onchange || null });
+    // 정확히 맞는 값이 없고 숫자(분)면 가장 가까운 선택지를 고른다
+    var exact = options.some(function (o) { return String(o.value) === String(selected); });
+    var nearest = null;
+    if (!exact && options.length && selected !== undefined && selected !== null && isFinite(Number(selected))) {
+      nearest = options.reduce(function (best, o) { return Math.abs(Number(o.value) - Number(selected)) < Math.abs(Number(best.value) - Number(selected)) ? o : best; }, options[0]);
+    }
     options.forEach(function (o) {
-      sel.appendChild(U.el('option', { value: o.value, selected: String(o.value) === String(selected) }, [o.label]));
+      sel.appendChild(U.el('option', { value: o.value, selected: String(o.value) === String(selected) || o === nearest }, [o.label]));
     });
     return sel;
   }
@@ -154,7 +160,7 @@ RB.bookingForm = (function () {
    */
   /**
    * 예약 폼. preset.edit 가 있으면 편집 모드(D-25): 방 고정, 제목·참석자·시간만 고치고 `update` 를 부른다.
-   * @param {Object} preset {calendarId?, date?, startMin?, endMin?, edit?:{eventId, title, guests:[email], onDone:function}}
+   * @param {Object} preset {calendarId?, date?, startMin?, endMin?, edit?:{eventId, title, guests:[email], grade?, organizerEmail?, organizerName?, isMine?, onDone:function}}
    */
   function open(preset) {
     preset = preset || {};
@@ -169,6 +175,11 @@ RB.bookingForm = (function () {
       startMin: preset.startMin !== undefined ? preset.startMin : timeOptions()[0].value,
       endMin: preset.endMin !== undefined ? preset.endMin : timeOptions()[0].value + 60
     };
+    // 칸(슬롯)에 맞지 않는 시각(예: 캘린더에서 잡은 07:15 예약)은 시작은 내림, 종료는 올림해서 선택지에 있게 한다
+    var step = cfg().slotMinutes || 30;
+    initial.startMin = Math.floor(initial.startMin / step) * step;
+    initial.endMin = Math.ceil(initial.endMin / step) * step;
+    if (initial.endMin <= initial.startMin) initial.endMin = initial.startMin + step;
 
     var resSel = U.el('select.select', { name: 'calendarId', onchange: onResourceChange });
     (function () {
@@ -305,7 +316,12 @@ RB.bookingForm = (function () {
       U.closeModal();
       U.toast(result.changed && result.changed.length ? t('result.updated') : t('result.noChange'), 'ok');
       RB.board.removeLocal(edit.eventId);
-      RB.board.addLocal({ calendarId: params.calendarId, eventId: edit.eventId, title: params.title, start: params.start, end: params.end, status: 'CONFIRMED', grade: edit.grade || null });
+      var kept = { calendarId: params.calendarId, eventId: edit.eventId, title: params.title, start: params.start, end: params.end, status: 'CONFIRMED', grade: edit.grade || null };
+      // 담당자가 남의 예약을 고칠 때 주최자를 내 이름으로 바꾸지 않는다
+      if (edit.organizerEmail !== undefined) kept.organizerEmail = edit.organizerEmail;
+      if (edit.organizerName !== undefined) kept.organizerName = edit.organizerName;
+      if (edit.isMine !== undefined) kept.isMine = edit.isMine;
+      RB.board.addLocal(kept);
       if (edit.onDone) edit.onDone();
     } else if (result.kind === 'CONFLICT') {
       var c = (result.conflicts || [])[0] || {};

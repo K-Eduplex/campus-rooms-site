@@ -62,7 +62,7 @@ RB.app = (function () {
       if (res.board) RB.board.preload(range, res.board);
       else RB.board.releasePreload();
       RB.people.load();   // 참석자 자동완성용 디렉터리를 백그라운드로 받아 둔다
-      if (!painted || state.tab === 'board') showTab('board');
+      if (!painted) showTab('board');   // 사본으로 이미 그린 경우: preload/releasePreload 가 현황판을 다시 그렸다
       var m = location.search.match(/[?&]complete=(R-\d+)/i);
       if (m) RB.bookingForm.openComplete(m[1].toUpperCase());
     }).catch(function (err) {

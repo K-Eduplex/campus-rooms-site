@@ -13,7 +13,6 @@
 window.RB = window.RB || {};
 
 RB.auth = (function () {
-  var STORAGE_KEY = 'rb.idt';
   var SESSION_KEY = 'rb.session';   // {token, exp, email, name}
   var session = null;
   var idToken = null;
@@ -63,7 +62,6 @@ RB.auth = (function () {
     idToken = response.credential;
     var p = decode(idToken) || {};
     profile = { email: p.email, name: p.name, picture: p.picture };
-    try { sessionStorage.setItem(STORAGE_KEY, idToken); } catch (e) { /* 저장소 차단 */ }
     exchange().then(function () {
       // 세션 갱신을 기다리던 호출들을 깨운다
       var waiters = refreshWaiters; refreshWaiters = [];
@@ -80,7 +78,8 @@ RB.auth = (function () {
   function signOut() {
     RB.ui.signingIn(false);
     idToken = null; profile = null; saveSession(null);
-    try { sessionStorage.removeItem(STORAGE_KEY); } catch (e) { /* 무시 */ }
+    try { sessionStorage.removeItem('rb.idt'); } catch (e) { /* 무시 — 예전 버전이 남긴 ID 토큰 사본 정리 */ }
+    try { localStorage.removeItem('rb.snapshot'); localStorage.removeItem('rb.recent'); } catch (e) { /* 무시 */ }   // 개인정보: 디렉터리 캐시·최근 초대자
     RB.board && RB.board.clearPersisted && RB.board.clearPersisted();   // 개인정보: 현황판 사본 삭제
     if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
     if (onSignedOut) onSignedOut();
@@ -95,12 +94,14 @@ RB.auth = (function () {
     if (!session && idToken) return Promise.resolve(); // 세션 교환 호출 자체
     if (!gisReady) return Promise.reject({ code: 'AUTH', message: RB.i18n.t('login.expired') });
     return new Promise(function (resolve, reject) {
+      var waiter = null;
       var timer = setTimeout(function () {
-        refreshWaiters = refreshWaiters.filter(function (w) { w.resolve !== resolve; });
+        refreshWaiters = refreshWaiters.filter(function (w) { return w !== waiter; });
         onAuthError({ message: 'expired' });
         reject({ code: 'AUTH', message: RB.i18n.t('login.expired') });
       }, 8000);
-      refreshWaiters.push({ resolve: function () { clearTimeout(timer); resolve(); }, reject: function (e) { clearTimeout(timer); reject(e); } });
+      waiter = { resolve: function () { clearTimeout(timer); resolve(); }, reject: function (e) { clearTimeout(timer); reject(e); } };
+      refreshWaiters.push(waiter);
       try { google.accounts.id.prompt(); } catch (e) { clearTimeout(timer); reject({ code: 'AUTH', message: RB.i18n.t('login.expired') }); }
     });
   }

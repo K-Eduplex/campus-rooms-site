@@ -34,18 +34,27 @@ RB.ui = (function () {
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); return node; }
 
   var modalRoot = null;
+  var modalReturnFocus = null;   // 모달을 열기 전에 포커스가 있던 요소
+  var modalSeq = 0;
+
+  function modalKey(e) { if (e.key === 'Escape' && modalRoot) { e.preventDefault(); closeModal(); } }
 
   /**
    * 모달 열기. content 는 DOM 노드. 반환값의 close() 로 닫는다.
+   * Esc 로 닫히고, 열면 포커스가 대화상자 안으로 들어가며 닫으면 원래 자리로 돌아간다.
    * @param {Element} content
    * @param {{title?:string, wide?:boolean}} opts
    */
   function modal(content, opts) {
+    var prev = document.activeElement;   // closeModal 이 이전 포커스를 지우므로 먼저 기억한다
+    if (modalRoot && prev && modalRoot.contains(prev)) prev = modalReturnFocus;   // 모달 위에 모달: 원래 자리를 유지
     closeModal();
+    modalReturnFocus = prev;
     opts = opts || {};
-    var box = el('div.modal' + (opts.wide ? '.modal-wide' : ''), { role: 'dialog', 'aria-modal': 'true' });
+    var titleId = 'modal-title-' + (++modalSeq);
+    var box = el('div.modal' + (opts.wide ? '.modal-wide' : ''), { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId });
     var head = el('div.modal-head', null, [
-      el('h2', null, [opts.title || '']),
+      el('h2', { id: titleId }, [opts.title || '']),
       el('button.icon-btn', { type: 'button', 'aria-label': RB.i18n.t('btn.close'), onclick: closeModal }, ['×'])
     ]);
     box.appendChild(head);
@@ -53,13 +62,26 @@ RB.ui = (function () {
     modalRoot = el('div.modal-backdrop', { onclick: function (e) { if (e.target === modalRoot) closeModal(); } }, [box]);
     document.body.appendChild(modalRoot);
     document.body.classList.add('modal-open');
+    document.addEventListener('keydown', modalKey);
+    var first = box.querySelector('input:not([type=hidden]), select, textarea, button, [href], [tabindex]:not([tabindex="-1"])');
+    // 첫 입력칸을 우선한다(닫기 버튼보다 본문). 없으면 첫 포커스 가능 요소, 그것도 없으면 상자 자체.
+    var body = box.querySelector('.modal-body');
+    var field = body && body.querySelector('input:not([type=hidden]), select, textarea, button');
+    if (field) field.focus();
+    else if (first) first.focus();
+    else { box.tabIndex = -1; box.focus(); }
     return { close: closeModal, box: box };
   }
 
   function closeModal() {
+    document.removeEventListener('keydown', modalKey);
     if (modalRoot && modalRoot.parentNode) modalRoot.parentNode.removeChild(modalRoot);
+    var back = modalReturnFocus;
+    var wasOpen = !!modalRoot;
     modalRoot = null;
+    modalReturnFocus = null;
     document.body.classList.remove('modal-open');
+    if (wasOpen && back && document.body.contains(back) && typeof back.focus === 'function') back.focus();
   }
 
   /** 하단 알림. kind: 'ok' | 'error' | 'info' */

@@ -68,14 +68,14 @@ RB.people = (function () {
     for (var i = 0; i < dir.length; i++) {
       var u = dir[i];
       if (taken[u.e]) continue;
-      var name = u.n.toLowerCase(), local = u.e.split('@')[0];
+      var name = String(u.n || '').toLowerCase(), local = String(u.e || '').split('@')[0];
       var words = name.split(/\s+/);
       if (words.some(function (w) { return w.indexOf(term) === 0; }) || local.indexOf(term) === 0) starts.push(u);
-      else if (name.indexOf(term) !== -1 || u.e.indexOf(term) !== -1) contains.push(u);
+      else if (name.indexOf(term) !== -1 || String(u.e || '').indexOf(term) !== -1) contains.push(u);
       if (starts.length >= 40) break;
     }
     var rank = function (u) { var r = recent.indexOf(u.e); return r === -1 ? 999 : r; };
-    starts.sort(function (a, b) { return rank(a) - rank(b) || a.n.localeCompare(b.n); });
+    starts.sort(function (a, b) { return rank(a) - rank(b) || String(a.n || '').localeCompare(String(b.n || '')); });
     return Promise.resolve(starts.concat(contains).slice(0, 8).map(function (u) { return { email: u.e, name: u.n }; }));
   }
 

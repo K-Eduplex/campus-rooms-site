@@ -168,6 +168,13 @@ RB.settings = (function () {
         ? t('settings.zoomUsage.verdict.ok', { months: months.length })
         : t('settings.zoomUsage.verdict.check', { hours: h4.toFixed(1), days: days4.length, dates: days4.slice(0, 10).join(', ') });
       out.appendChild(U.el(verdictClass, null, [verdictText]));
+      var errors = data.errors || [];
+      if (errors.length) {
+        out.appendChild(U.el('p.error', null, [t('settings.zoomUsage.partial', {
+          n: errors.length,
+          list: errors.slice(0, 5).map(function (e) { return String(e.account || '').split('@')[0] + ' ' + (e.month || ''); }).join(', ')
+        })]));
+      }
 
       function hrs(n) { return ((c.minutesAtLeast[n] || 0) / 60).toFixed(1); }
       function dcount(n) { return (c.daysAtLeast[n] || []).length; }
@@ -186,6 +193,7 @@ RB.settings = (function () {
         var cells = [U.el('td', null, [month])];
         acc.forEach(function (email) {
           var pam = data.perAccountMonth[email] || {};
+          if (pam[month] === null) { cells.push(U.el('td', null, ['–'])); return; }   // 이 달은 Zoom 에서 못 읽음
           var rec = pam[month] || {};
           var meetings = rec.meetings || 0;
           var hours = rec.hours || 0;
@@ -200,6 +208,7 @@ RB.settings = (function () {
         var meetings = 0;
         var hours = 0;
         months.forEach(function (month) {
+          if (pam[month] === null) return;
           var rec = pam[month] || {};
           meetings += rec.meetings || 0;
           hours += Number(rec.hours) || 0;
