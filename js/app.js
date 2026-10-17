@@ -49,6 +49,8 @@ RB.app = (function () {
     var painted = false;
     if (snap && snap.email === profile.email && snap.me && snap.resources) {
       applyUser(snap.me, snap.resources);
+      RB.board.restore(profile.email);   // 사용자별 현황판 사본을 먼저 그린다(갱신은 뒤에서)
+      RB.board.expectPreload(range);   // 이번 주는 init 응답을 기다린다(같은 요청을 두 번 보내지 않게)
       showTab('board');
       painted = true;
     }
@@ -58,11 +60,13 @@ RB.app = (function () {
       try { localStorage.setItem(SNAP_KEY, JSON.stringify({ email: profile.email, me: res.me, resources: res.resources })); } catch (e) { /* 무시 */ }
       applyUser(res.me, res.resources);
       if (res.board) RB.board.preload(range, res.board);
+      else RB.board.releasePreload();
       RB.people.load();   // 참석자 자동완성용 디렉터리를 백그라운드로 받아 둔다
       if (!painted || state.tab === 'board') showTab('board');
       var m = location.search.match(/[?&]complete=(R-\d+)/i);
       if (m) RB.bookingForm.openComplete(m[1].toUpperCase());
     }).catch(function (err) {
+      RB.board.releasePreload();
       U.toast(err.message || t('error.network'), 'error');
       U.signingIn(false);
       if (!painted) RB.auth.signOut();
@@ -71,6 +75,7 @@ RB.app = (function () {
 
   function onSignedOut() {
     state.user = null;
+    $('user-name').textContent = '';
     $('app').hidden = true; $('login').hidden = false;
     if (RB.api.isMock()) RB.auth.init({ buttonEl: $('login-button'), signedIn: onSignedIn, signedOut: onSignedOut });
   }

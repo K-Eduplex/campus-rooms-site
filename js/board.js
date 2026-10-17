@@ -1,5 +1,6 @@
 /**
  * [board.js] — 현황판 (장소 × 시간 격자).
+ * 주의: 현황판 데이터는 사용자별로 localStorage(rb.board.<email>)에 보관되며 로그아웃 때 지운다.
  *
  * 무엇을 한다: 일 보기(세로=장소, 가로=시간)와 주 보기(장소 하나, 세로=요일)를 그린다.
  *              빈 칸 클릭 → 예약 폼, 일정 클릭 → 상세 팝오버.
@@ -19,6 +20,70 @@ RB.board = (function () {
   var state = { view: 'day', date: T.today(), weekResource: null, events: [], pending: [], preloaded: null, group: 'MAIN' };
   var weekCache = {};   // weekStartKey → {data, at}
   var CACHE_MS = 5 * 60000;   // 서버가 30초 공유 캐시 + 쓰기 시 무효화를 하므로 브라우저는 5분 보관. 내 예약·취소는 로컬 즉시 반영
+  var STORE_PREFIX = 'rb.board.';
+  var STORE_MAX = 8;
+  var STORE_MS = 24 * 3600000;
+  var epoch = 0;   // restore/clearPersisted 때 올린다. 이전 epoch 의 비동기 응답은 캐시·저장소·refreshing 을 건드리지 않는다.
+  var inflight = {};   // weekKey → 진행 중인 서버 요청 Promise (중복 요청 방지)
+  var refreshing = 0;  // 백그라운드 갱신 진행 수. 0 보다 크면 "Updating…" 표시
+  var groupsPrefetched = false;  // 다른 그룹 미리 받기는 페이지당 한 번
+  var pendingInit = null;  // {key, waiters} — init 응답을 기다리는 현재 주 (expectPreload / preload / releasePreload)
+
+  /** 사용자별 현황판 스냅숏을 localStorage에 저장한다(오래된 주는 버림). */
+  function persist() {
+    var email = RB.app.state.user && RB.app.state.user.email;
+    if (!email) return;
+    email = String(email).toLowerCase();
+    try {
+      var weeks = {};
+      var items = [];
+      Object.keys(weekCache).forEach(function (key) {
+        var hit = weekCache[key];
+        if (!hit || hit.loading || !hit.data || !hit.data.events) return;
+        if (Date.now() - hit.at > STORE_MS) return;
+        items.push({ key: key, at: hit.at, data: hit.data });
+      });
+      items.sort(function (a, b) { return b.at - a.at; });
+      items.slice(0, STORE_MAX).forEach(function (item) { weeks[item.key] = { data: item.data, at: item.at }; });
+      localStorage[STORE_PREFIX + email] = JSON.stringify({ v: 1, weeks: weeks });
+    } catch (e) { /* storage 사용 불가 등은 무시 */ }
+  }
+
+  /** 로그인한 사용자의 저장된 현황판 사본을 복원한다(렌더는 하지 않음). */
+  function restore(email) {
+    epoch++;
+    pendingInit = null;
+    weekCache = {};
+    inflight = {};
+    refreshing = 0;
+    try {
+      var key = STORE_PREFIX + String(email || '').toLowerCase();
+      var raw = localStorage[key];
+      if (!raw) return;
+      var store = JSON.parse(raw);
+      if (store.v !== 1 || typeof store.weeks !== 'object' || store.weeks === null) return;
+      Object.keys(store.weeks).forEach(function (k) {
+        var w = store.weeks[k];
+        if (w && w.data && Object.prototype.toString.call(w.data.events) === '[object Array]' && Date.now() - w.at < STORE_MS) {
+          weekCache[k] = { data: w.data, at: w.at, stale: true };
+        }
+      });
+    } catch (e) { /* 손상된 JSON 등은 무시 */ }
+  }
+
+  /** 로그아웃 시 사용자 현황판 사본을 모두 지운다. */
+  function clearPersisted() {
+    epoch++;
+    pendingInit = null;
+    weekCache = {};
+    inflight = {};
+    refreshing = 0;
+    try {
+      Object.keys(localStorage).forEach(function (k) {
+        if (k.indexOf(STORE_PREFIX) === 0) localStorage.removeItem(k);
+      });
+    } catch (e) { /* 무시 */ }
+  }
 
   function cfg() { return RB.app.state.config; }
   /** @param {Object} r 장소 객체
@@ -71,10 +136,57 @@ RB.board = (function () {
   function initialRange() { var r = currentRange(); return { from: r.from, to: r.to, group: r.group }; }
 
   /** init 응답에 실려 온 첫 현황판 데이터(이번 주, MAIN 그룹). 캐시에 넣는다. */
-  function preload(range, data) { weekCache[(range.group || 'MAIN') + '|' + T.weekStart(state.date)] = { data: data, at: Date.now() }; }
+  // init 응답을 현재 주 캐시로 저장하고, 기다리던 load()를 풀어준다.
+  function preload(range, data) {
+    var key = (range.group || 'MAIN') + '|' + T.weekStart(state.date);
+    weekCache[key] = { data: data, at: Date.now() };
+    persist();
+    if (!pendingInit || pendingInit.key !== key) return;
+    var pi = pendingInit;
+    pendingInit = null;
+    refreshing--;
+    if (pi.waiters.length > 0) {
+      pi.waiters.forEach(function (w) { w.resolve(data); });
+      syncIndicator();
+    } else if (RB.app.state.tab === 'board') {
+      rerender();
+    } else {
+      syncIndicator();
+    }
+  }
+
+  // init 응답이 현재 주를 갱신할 예정임을 표시해 같은 요청이 두 번 가지 않게 한다.
+  function expectPreload(range) {
+    pendingInit = { key: (range.group || 'MAIN') + '|' + T.weekStart(state.date), waiters: [] };
+    refreshing++;
+    syncIndicator();
+  }
+
+  // 저장된 사본이 없어서 init 응답을 기다려야 할 때 load()가 쓰는 Promise.
+  function awaitPreload(range) {
+    return new Promise(function (resolve, reject) {
+      pendingInit.waiters.push({ range: range, resolve: resolve, reject: reject });
+    });
+  }
+
+  // init이 board 데이터 없이 끝나거나 실패하면 일반 새로고침으로 되돌린다.
+  function releasePreload() {
+    if (!pendingInit) return;
+    var pi = pendingInit;
+    pendingInit = null;
+    refreshing--;
+    if (pi.waiters.length > 0) {
+      pi.waiters.forEach(function (w) { fetchWeek(w.range).then(w.resolve, w.reject); });
+      syncIndicator();
+    } else if (RB.app.state.tab === 'board') {
+      rerender();
+    } else {
+      syncIndicator();
+    }
+  }
 
   /** 캐시 비우기. 승인 등 다른 사람 데이터가 바뀐 뒤 호출. */
-  function invalidate() { weekCache = {}; }
+  function invalidate() { weekCache = {}; persist(); }
 
   /**
    * 내가 만든 예약을 서버 재조회 없이 바로 그린다(서버 왕복 2~5초 절약).
@@ -89,6 +201,7 @@ RB.board = (function () {
     var g = groupOf(room);
     var hit = weekCache[g + '|' + wk];
     if (hit) hit.data.events.push(e);
+    persist();
     if (g === state.group && wk === T.weekStart(state.date)) rerender();
   }
 
@@ -99,6 +212,7 @@ RB.board = (function () {
       d.events = d.events.filter(function (e) { return e.eventId !== eventId; });
       d.pending = (d.pending || []).filter(function (p) { return p.requestId !== eventId; });
     });
+    persist();
     rerender();
   }
 
@@ -108,25 +222,109 @@ RB.board = (function () {
     [T.addDays(wk, -7), T.addDays(wk, 7)].forEach(function (k) {
       var key = g + '|' + k;
       var hit = weekCache[key];
-      if (hit && Date.now() - hit.at < CACHE_MS) return;
+      if (hit && (hit.stale || Date.now() - hit.at < CACHE_MS)) return;
+      var ep = epoch;
       weekCache[key] = { data: { events: [], pending: [] }, at: 0, loading: true };
       RB.api.call('board', { from: T.make(k, 0).toISOString(), to: T.make(T.addDays(k, 7), 0).toISOString(), group: g })
-        .then(function (data) { weekCache[key] = { data: data, at: Date.now() }; })
-        .catch(function () { delete weekCache[key]; });
+        .then(function (data) {
+          if (ep === epoch) {
+            weekCache[key] = { data: data, at: Date.now() };
+            persist();
+          }
+        })
+        .catch(function () { if (ep === epoch) delete weekCache[key]; });
     });
+  }
+
+  /** 다른 그룹도 미리 받아 둔다(페이지당 한 번). */
+  function prefetchGroups() {
+    if (groupsPrefetched) return;
+    groupsPrefetched = true;
+    var base = currentRange();
+    var wk = T.weekStart(state.date);
+    var groups = [];
+    if (hasOtherGroup()) groups.push('OTHER');
+    if (hasZoomGroup()) groups.push('ZOOM');
+    groups.forEach(function (g) {
+      if (g === state.group) return;
+      var key = g + '|' + wk;
+      var hit = weekCache[key];
+      if (hit && !hit.loading && !hit.stale && Date.now() - hit.at < CACHE_MS) return;
+      fetchWeek({ from: base.from, to: base.to, group: g, weekKey: key }).catch(function () { /* 미리 받기 실패는 무시 */ });
+    });
+  }
+
+  /** weekKey 하나에 대한 서버 요청을 중복 없이 수행한다. */
+  function fetchWeek(range) {
+    var key = range.weekKey;
+    if (inflight[key]) return inflight[key];
+    var ep = epoch;
+    var p = RB.api.call('board', { from: range.from, to: range.to, group: range.group }).then(function (data) {
+      if (ep === epoch) {
+        weekCache[key] = { data: data, at: Date.now() };
+        persist();
+      }
+      if (inflight[key] === p) delete inflight[key];
+      return data;
+    }, function (err) {
+      if (inflight[key] === p) delete inflight[key];
+      throw err;
+    });
+    inflight[key] = p;
+    return p;
+  }
+
+  /** stale 사본을 보여준 뒤 새 데이터를 받아 다시 그린다. */
+  function refreshWeek(range) {
+    var ep = epoch;
+    refreshing++;
+    syncIndicator();
+    fetchWeek(range).then(function () {
+      if (ep !== epoch) return;
+      refreshing--;
+      // 성공했을 때만 다시 그린다. 실패 시 재요청 루프를 막기 위해 사본을 그대로 둔다.
+      if (RB.app.state.tab === 'board' && currentRange().weekKey === range.weekKey) rerender();
+      else syncIndicator();
+    }, function () {
+      if (ep !== epoch) return;
+      refreshing--;
+      // 실패하면 사본을 그대로 두고 표시만 갱신한다.
+      syncIndicator();
+    });
+  }
+
+  /** 백그라운드 갱신 건수를 툴바에 표시한다. */
+  function syncIndicator() {
+    var bar = document.querySelector('#view-board .toolbar-group');
+    if (!bar) return;
+    var el = bar.querySelector('.board-updating');
+    if (refreshing > 0 && !el) bar.appendChild(U.el('span.muted.board-updating', { role: 'status' }, [t('board.updating')]));
+    if (refreshing <= 0 && el) bar.removeChild(el);
   }
 
   function load() {
     var range = currentRange();
     var hit = weekCache[range.weekKey];
     if (hit && hit.loading) hit = null;   // 미리 받기 진행 중이면 정식으로 다시 요청(같은 요청이 두 번 갈 수 있지만 드묾)
-    var p = (hit && Date.now() - hit.at < CACHE_MS)
-      ? Promise.resolve(hit.data)
-      : RB.api.call('board', { from: range.from, to: range.to, group: range.group }).then(function (data) { weekCache[range.weekKey] = { data: data, at: Date.now() }; return data; });
+    var shownFresh = true;
+    var waitingInit = !!pendingInit && pendingInit.key === range.weekKey;
+    var p;
+    if (hit && hit.stale) {
+      p = Promise.resolve(hit.data);
+      shownFresh = false;
+      if (!waitingInit) refreshWeek(range);
+    } else if (hit && Date.now() - hit.at < CACHE_MS) {
+      p = Promise.resolve(hit.data);
+    } else if (waitingInit) {
+      p = awaitPreload(range);
+    } else {
+      p = fetchWeek(range);
+    }
     return p.then(function (data) {
       // 캐시 데이터는 재사용되므로 복사해서 Date 로 바꾼다
       state.events = data.events.map(function (e) { return hydrate(Object.assign({}, e)); });
       state.pending = (data.pending || []).map(function (e) { return hydrate(Object.assign({}, e)); });
+      return shownFresh;
     });
   }
   function hydrate(e) { e.start = new Date(e.start); e.end = new Date(e.end); return e; }
@@ -140,12 +338,13 @@ RB.board = (function () {
     // 로딩 중에는 직전 데이터로 그려 두어 화면이 비지 않게 한다(첫 로드면 안내문)
     if (resources().length && state.events.length) wrap.appendChild(state.view === 'day' ? dayGrid() : weekGrid());
     else wrap.appendChild(U.loadingBlock());
-    load().then(function () {
+    load().then(function (shownFresh) {
       U.clear(wrap); wrap.classList.remove('loading');
       if (!resources().length) { wrap.appendChild(U.el('p.muted', null, [t('board.empty')])); return; }
       wrap.appendChild(state.view === 'day' ? dayGrid() : weekGrid());
       wrap.appendChild(legend());
       setTimeout(prefetchNeighbors, 300);
+      if (shownFresh) setTimeout(prefetchGroups, 300);
     }).catch(function (err) {
       U.clear(wrap);
       wrap.appendChild(U.el('p.error', null, [err.message || t('error.network')]));
@@ -169,7 +368,8 @@ RB.board = (function () {
         U.el('button.icon-btn', { type: 'button', 'aria-label': 'prev', onclick: function () { state.date = T.addDays(state.date, -step); rerender(); } }, ['‹']),
         U.el('input.date-input', { type: 'date', value: state.date, onchange: function (e) { if (e.target.value) { state.date = e.target.value; rerender(); } } }),
         U.el('button.icon-btn', { type: 'button', 'aria-label': 'next', onclick: function () { state.date = T.addDays(state.date, step); rerender(); } }, ['›']),
-        U.el('span.toolbar-label', null, [label])
+        U.el('span.toolbar-label', null, [label]),
+        refreshing > 0 ? U.el('span.muted.board-updating', { role: 'status' }, [t('board.updating')]) : null
       ]),
       U.el('div.toolbar-group', null, [
         segment('day'), segment('week'),
@@ -351,5 +551,5 @@ RB.board = (function () {
     ]);
   }
 
-  return { render: render, refresh: refresh, state: state, initialRange: initialRange, preload: preload, invalidate: invalidate, addLocal: addLocal, removeLocal: removeLocal };
+  return { render: render, refresh: refresh, state: state, initialRange: initialRange, preload: preload, invalidate: invalidate, addLocal: addLocal, removeLocal: removeLocal, restore: restore, clearPersisted: clearPersisted, expectPreload: expectPreload, releasePreload: releasePreload };
 })();

@@ -124,7 +124,8 @@ RB.mock = (function () {
   seed();
 
   // ---- 도우미 --------------------------------------------------------------
-  function delay(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 150); }); }
+  // 데모용 지연. ?mockDelay=2500 처럼 쿼리로 조절한다(기본 150ms).
+  function delay(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, Number(new URLSearchParams(location.search).get('mockDelay')) || 150); }); }
   function fail(code, message) { return Promise.reject({ code: code, message: message }); }
   function res(id) { return RESOURCES.filter(function (r) { return r.calendarId === id; })[0]; }
   function isApprover(r) { return me && (me.email === 'admin@k-eduplex.net' || r.approvers.indexOf(me.email) !== -1); }

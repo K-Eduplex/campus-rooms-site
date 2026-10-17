@@ -57,6 +57,7 @@ RB.I18N.en = {
   'board.inactive': 'inactive',
   'board.inactiveNotice': 'This space is not open for booking yet. Please contact the administrator.',
   'board.empty': 'No rooms to show.',
+  'board.updating': 'Updating…',
   'mode.AUTO': 'First come',
   'mode.APPROVAL': 'Approval required',
   'form.title': 'New booking',

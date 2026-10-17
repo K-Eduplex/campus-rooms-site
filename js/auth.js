@@ -81,6 +81,7 @@ RB.auth = (function () {
     RB.ui.signingIn(false);
     idToken = null; profile = null; saveSession(null);
     try { sessionStorage.removeItem(STORAGE_KEY); } catch (e) { /* 무시 */ }
+    RB.board && RB.board.clearPersisted && RB.board.clearPersisted();   // 개인정보: 현황판 사본 삭제
     if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
     if (onSignedOut) onSignedOut();
   }
