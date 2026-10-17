@@ -183,7 +183,7 @@ RB.I18N.en = {
   'settings.zoomUsage.refresh': 'Refresh',
   'settings.zoomUsage.verdict.ok': 'In the last {months} month(s), 4 or more accounts were never in use at the same time — 3 accounts would have been enough.',
   'settings.zoomUsage.verdict.check': '4 or more accounts were in use at the same time for {hours} h on {days} day(s): {dates}. Check these dates with the account owners before reducing licences.',
-  'settings.zoomUsage.summary': 'Most accounts in use at once: {max}. 3 or more: {h3} h ({d3} days) · 4 or more: {h4} h ({d4} days) · 5: {h5} h ({d5} days).',
+  'settings.zoomUsage.summary': 'Most accounts in use at once: {max}. 2 or more: {h2} h ({d2} days) · 3 or more: {h3} h ({d3} days) · 4 or more: {h4} h ({d4} days) · 5: {h5} h ({d5} days).',
   'settings.zoomUsage.unavailable': '{from} – {to}: older than Zoom keeps report data. Use the Zoom web portal (Reports → Usage) and export CSV for those months.',
   'settings.zoomUsage.generated': 'Calculated {at}.',
   'settings.zoomUsage.cached': '(saved result — press Refresh for the latest)',

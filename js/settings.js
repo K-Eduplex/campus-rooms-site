@@ -172,7 +172,7 @@ RB.settings = (function () {
       function hrs(n) { return ((c.minutesAtLeast[n] || 0) / 60).toFixed(1); }
       function dcount(n) { return (c.daysAtLeast[n] || []).length; }
       out.appendChild(U.el('p.muted', null, [t('settings.zoomUsage.summary', {
-        max: c.max, h3: hrs(3), d3: dcount(3), h4: hrs(4), d4: dcount(4), h5: hrs(5), d5: dcount(5)
+        max: c.max, h2: hrs(2), d2: dcount(2), h3: hrs(3), d3: dcount(3), h4: hrs(4), d4: dcount(4), h5: hrs(5), d5: dcount(5)
       })]));
       out.appendChild(U.el('p.muted', null, [t('settings.zoomUsage.cell')]));
 
