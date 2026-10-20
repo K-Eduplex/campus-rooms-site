@@ -299,6 +299,7 @@ RB.I18N.en = {
   'mine.yield.reason': 'Reason',
   'mine.yield.yourBooking': 'Your booking',
   'mine.yield.auto': 'If you do not answer by {time}, the slot is handed over automatically.',
+  'mine.yield.noAuto': 'If you do not answer, the room approver decides (repeating bookings are not handed over automatically).',
   'mine.yield.approvalNote': 'This room needs approval: if you yield, the room approver confirms the change.',
   'mine.yield.yes': 'Yes, I can yield',
   'mine.yield.no': 'No, I need it',

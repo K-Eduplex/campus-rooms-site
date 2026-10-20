@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/tokens.css?v=afa7f1a">
-  <link rel="stylesheet" href="css/app.css?v=afa7f1a">
+  <link rel="stylesheet" href="css/tokens.css?v=558d669">
+  <link rel="stylesheet" href="css/app.css?v=558d669">
   <style>
     .doc { max-width: 760px; margin: 28px auto; padding: 0 20px 60px; line-height: 1.6; }
     .doc h1 { font-size: 24px; margin-bottom: 4px; }
@@ -99,7 +99,7 @@
     </ul>
     <p>What happens after a preemption request:</p>
     <ol>
-      <li>First, only the <b>current holder</b> gets an email asking whether they can yield the slot (they can also answer on the site, under <b>My bookings</b>). If they say <b>yes</b>, or do not answer within <b>4 business hours</b> (they get one reminder after 2), the slot is handed over to you <b>automatically</b> (for approval-required rooms the approver still confirms).</li>
+      <li>First, only the <b>current holder</b> gets an email asking whether they can yield the slot (they can also answer on the site, under <b>My bookings</b>). If they say <b>yes</b>, or do not answer within <b>8 business hours</b> (they get one reminder after 4), the slot is handed over to you <b>automatically</b> &mdash; except for a <b>repeating booking</b>, where the room approver decides. In approval-required rooms a yielded request is approved automatically if the approver does not decide in time.</li>
       <li>If they say <b>no</b> &mdash; or their booking starts within the protected window, so a silent holder is not enough &mdash; the <b>room approver</b> is asked and decides, weighing the purpose grade of each booking (official events rank above classes, then meetings, then other).</li>
       <li>You are emailed either way. If it is granted, the previous holder is notified and offered alternatives.</li>
       <li>No answer within 12 business hours (or 2 hours before the start) means the request is automatically declined and the existing booking stays.</li>
@@ -190,7 +190,7 @@
       <tr><th>The board looks out of date</th><td>It refreshes when you change days or after you book. Press <kbd>‹</kbd> then <kbd>›</kbd>, or reload the page.</td></tr>
       <tr><th>I booked but nobody was invited</th><td>Attendees are invited only once the booking is confirmed. For approval rooms that is after approval.</td></tr>
       <tr><th>Can I change a booking?</th><td><b>My bookings → Edit</b> changes the title, attendees or time of a booking made here (single bookings in confirmed status, within the roughly two months <b>My bookings</b> covers). To change the room, make it repeat, or move a booking in an approval-required room, cancel and book again. Bookings from Google Calendar are edited there.</td></tr>
-      <tr><th>Who decides preemptions?</th><td>The current holder is asked first. If they say yes, or do not answer within 4 business hours, the slot is handed over automatically (approval-required rooms: the approver confirms). If they say no, or their booking starts within the protected window, the room approver decides. Purpose grade is a guide, not an automatic rule.</td></tr>
+      <tr><th>Who decides preemptions?</th><td>The current holder is asked first. If they say yes, or do not answer within 8 business hours, the slot is handed over automatically (approval-required rooms: approved automatically if the approver does not decide in time). If they say no, their booking is a repeating one, or it starts within the protected window, the room approver decides. Purpose grade is a guide, not an automatic rule.</td></tr>
       <tr><th>Where is my data stored?</th><td>Inside the schools' Google Workspace. See the <a href="privacy.html">privacy policy</a>.</td></tr>
     </table>
   </main>

@@ -61,7 +61,7 @@ RB.myBookings = (function () {
       U.el('div', null, [q.title + ' · ' + T.fmtRange(new Date(q.startAt), new Date(q.endAt), lang)]),
       U.el('div.muted', null, [t('mine.yield.reason') + ': ' + (q.reason || '-') + (q.grade ? ' · ' + q.grade : '')])
     ].concat(mine, [
-      U.el('div.yield-auto', null, [t('mine.yield.auto', { time: T.fmtDateTime(new Date(q.autoYieldAt), lang) })]),
+      U.el('div.yield-auto', null, [q.autoYieldAt ? t('mine.yield.auto', { time: T.fmtDateTime(new Date(q.autoYieldAt), lang) }) : t('mine.yield.noAuto')]),
       q.approvalRoom ? U.el('div.muted.small', null, [t('mine.yield.approvalNote')]) : null,
       U.el('div.actions', null, [yesBtn, noBtn])
     ]));
