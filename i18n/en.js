@@ -81,6 +81,7 @@ RB.I18N.en = {
   'form.bookFor.toggle': 'I am booking for someone else',
   'form.bookFor.notice': 'The booking will be made in their name: only they are invited, and all emails (approval, changes, cancellation) go to them — you will not be on the calendar event. You get one confirmation email and can still edit or cancel it from My bookings. Please book for someone only with their agreement.',
   'form.err.bookFor': 'Enter a valid school email for “Book for”.',
+  'form.err.bookForDomain': 'Book for only works for school accounts ({domains}). For an outside person, add them as a guest or as the Zoom host instead.',
   'mine.bookedFor': 'Booked for {who}',
   'mine.bookedBy': 'Booked by {who}',
   'form.zoomHost': 'Host email',

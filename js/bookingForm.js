@@ -326,6 +326,9 @@ RB.bookingForm = (function () {
       if (p.zoomHost && !EMAIL_RE.test(p.zoomHost)) return t('form.err.zoomHost');
       if (bookForToggle.checked && !edit && !p.bookFor) return t('form.err.bookFor');
       if (p.bookFor && !EMAIL_RE.test(p.bookFor)) return t('form.err.bookFor');
+      // 대신 예약은 학교 계정만(예약 주인이 사이트에 로그인해야 함, D-31). 외부인은 참석자나 Zoom 호스트로 — 서버까지 가기 전에 안내(2026-10-20)
+      var doms = cfg().domains || [];
+      if (p.bookFor && doms.length && doms.indexOf(p.bookFor.split('@')[1]) === -1) return t('form.err.bookForDomain', { domains: doms.join(', ') });
       return null;
     }
 
