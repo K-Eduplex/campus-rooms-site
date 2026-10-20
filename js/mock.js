@@ -593,9 +593,10 @@ RB.mock = (function () {
     var o2 = owner(p);
     var seriesId = occ.length > 1 ? 'S' + (++seq) : null;   // 반복 예약의 회차들을 묶는다(mock)
     return occ.map(function (o) {
+      // 반복 회차 ID 는 실제처럼 <시리즈>_<날짜> (현황판 'Cancel this and following' 판정용, 2026-10-20).
       var e = {
-        calendarId: r.calendarId, eventId: 'e' + (++seq), title: p.title, start: o.start, end: o.end,
-        organizerEmail: o2.email, organizerName: o2.name, status: status, grade: p.grade || 'OTHER', bookedBy: o2.bookedBy
+        calendarId: r.calendarId, eventId: seriesId ? seriesId + '_' + T.dateKey(o.start).replace(/-/g, '') : 'e' + (++seq), title: p.title, start: o.start, end: o.end,
+        organizerEmail: o2.email, organizerName: o2.name, status: status, grade: p.grade || 'OTHER', bookedBy: o2.bookedBy, isBot: true // 사이트에서 만든 예약(실제 서버의 isBot 과 같게, 2026-10-20)
       };
       if (seriesId) e.seriesId = seriesId;
       events.push(e);

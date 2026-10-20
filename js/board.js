@@ -522,6 +522,8 @@ RB.board = (function () {
     var me = RB.app.state.user;
     var isPast = ev.end < new Date();
     var canCancel = !isPast && !ev.isPreempt && (ev.isMine || me.isSuperAdmin || (me.approverOf || []).indexOf(resource.calendarId) !== -1);
+    // 시스템이 만든 반복 예약의 회차(ID 가 _YYYYMMDD 또는 _YYYYMMDDTHHMMSSZ 로 끝남) — 담당자·슈퍼 관리자도 이후 회차를 한꺼번에 취소(2026-10-20)
+    var isSeries = !!ev.isBot && /_\d{8}(T\d{6}Z)?$/.test(String(ev.eventId || ''));
     var canPreempt = !isPast && !ev.isMine && !ev.isPreempt && resource.kind !== 'ZOOM' && resource.mode === 'AUTO' && ev.status === 'CONFIRMED';
 
     var body = U.el('div', null, [
@@ -545,7 +547,16 @@ RB.board = (function () {
             RB.api.call('cancel', { key: ev.eventId || ev.requestId, calendarId: resource.calendarId }).then(function () { U.toast(t('toast.cancelled'), 'ok'); removeLocal(ev.eventId || ev.requestId); })
               .catch(function (err) { U.toast(t('result.error', { message: err.message }), 'error'); });
           });
-        } }, [t('btn.cancelBooking')]) : null
+        } }, [t(isSeries ? 'btn.cancelOccurrence' : 'btn.cancelBooking')]) : null,
+        canCancel && isSeries ? U.el('button.btn.btn-danger', { type: 'button', onclick: function () {
+          U.closeModal();
+          U.confirm(t('confirm.cancelFollowing')).then(function (yes) {
+            if (!yes) return;
+            RB.api.call('cancel', { key: ev.eventId, calendarId: resource.calendarId, scope: 'following' })
+              .then(function () { U.toast(t('toast.cancelled'), 'ok'); refresh(); })
+              .catch(function (err) { U.toast(t('result.error', { message: err.message }), 'error'); });
+          });
+        } }, [t('btn.cancelFollowing')]) : null
       ])
     ]);
     U.modal(body, { title: ev.title });
