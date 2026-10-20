@@ -66,6 +66,15 @@ RB.mock = (function () {
   // ---- 일정과 요청 (캘린더 + Requests 시트) ---------------------------------
   var events = [];
   var requests = [];
+  // 나에게 온 양보 질문(합성 1건, 일반 사용자에게만). 답하면 목록에서 빠진다.
+  var yieldItems = [{
+    requestId: 'R-YIELD-1', room: 'M101', title: 'Final exam', requester: 'staff@jiu.ac', requesterName: 'Seojun Park',
+    reason: 'Final exam for the second-year class.', grade: 'Official', approvalRoom: false,
+    startAt: new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString(), endAt: new Date(Date.now() + 3 * 24 * 3600 * 1000 + 2 * 3600 * 1000).toISOString(),
+    myBookings: [{ title: 'Study group', start: new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString(), end: new Date(Date.now() + 3 * 24 * 3600 * 1000 + 2 * 3600 * 1000).toISOString() }],
+    autoYieldAt: new Date(Date.now() + 4 * 3600 * 1000).toISOString()
+  }];
+  function myYields() { return me && me.email === 'minji.kim@jiu.ac' ? yieldItems : []; }
   var seq = 100;
   var intents = {};
 
@@ -176,7 +185,7 @@ RB.mock = (function () {
       }).length;
       return delay({
         email: me.email, name: me.name, isSuperAdmin: me.email === 'admin@k-eduplex.net',
-        approverOf: approverOf, pendingApprovals: pending, config: CONFIG,
+        approverOf: approverOf, pendingApprovals: pending, pendingYields: myYields().length, config: CONFIG,
         sheetUrl: 'https://docs.google.com/spreadsheets/d/1mbXDwXMDWt8wjIZ0KwZQwrKJ54GOnkTz20jgr2b29Go/edit'
       });
     },
@@ -295,7 +304,18 @@ RB.mock = (function () {
           return e;
         });
       var reqs = requests.filter(function (q) { return (q.requesterEmail === me.email || q.bookedBy === me.email) && (q.status === 'DRAFT' || (!q.eventId && (q.status === 'PENDING' || q.status === 'ESCALATED'))); }).map(serialize);
-      return delay({ events: mine, requests: reqs });
+      return delay({ events: mine, requests: reqs, yieldRequests: myYields().map(function (y) { return Object.assign({}, y); }) });
+    },
+
+    /** 양보 질문에 답한다(mock): 목록에서 뺀다. */
+    answerYield: function (p) {
+      var idx = -1;
+      yieldItems.forEach(function (y, i) { if (y.requestId === p.requestId) idx = i; });
+      if (idx === -1) return delay({ ok: false, message: 'Request not found.' });
+      yieldItems.splice(idx, 1);
+      return delay(p.answer === 'yes'
+        ? { ok: true, message: 'Thank you for yielding. The slot has been given to the requester and both of you have been notified.' }
+        : { ok: true, message: 'Noted. The room approver will decide; you will be notified of the outcome.' });
     },
 
     /** 예약 수정 (D-25 mock): 시간 충돌이면 CONFLICT */

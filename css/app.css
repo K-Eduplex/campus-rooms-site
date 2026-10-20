@@ -32,7 +32,7 @@ button, input, select, textarea { font-family: inherit; }
 @keyframes progress-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
 .btn.busy { position: relative; color: transparent !important; pointer-events: none; }
 .btn.busy::after { content: ''; position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border: 2px solid color-mix(in srgb, var(--text) 25%, transparent); border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; color: var(--text); }
-.btn-primary.busy::after, .btn-warn.busy::after { border-color: color-mix(in srgb, var(--on-action) 40%, transparent); border-top-color: var(--on-action); }
+.btn-primary.busy::after, .btn-warn.busy::after, .btn-success.busy::after { border-color: color-mix(in srgb, var(--on-action) 40%, transparent); border-top-color: var(--on-action); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .board-wrap.loading { opacity: .55; transition: opacity .2s; }
 @media (prefers-reduced-motion: reduce) { .progress-bar, .btn.busy::after { animation-duration: 2s; } }
@@ -89,6 +89,7 @@ button, input, select, textarea { font-family: inherit; }
 .btn-primary:hover { background: var(--action-strong); border-color: var(--action-strong); }
 .btn-danger { color: var(--danger); border-color: var(--danger); }
 .btn-danger:hover { background: var(--surface-sunken); }
+.btn-success { background: var(--success); border-color: var(--success); color: var(--on-action); }
 .btn-warn { background: var(--warning); border-color: var(--warning); color: var(--on-action); }
 .btn-sm { padding: 4px 14px; font-size: 14px; min-height: 32px; }
 .btn-block { display: block; width: 100%; text-align: left; }
@@ -170,6 +171,8 @@ details.optional summary { cursor: pointer; color: var(--text-muted); font-size:
 /* ---------- 카드 ---------- */
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 12px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 14px; box-shadow: var(--shadow-card); }
+.yield-card { border-left: 4px solid var(--warning); }
+.yield-card .yield-auto { margin: 6px 0; font-weight: 600; color: var(--ink); }
 .card-escalated { border-color: var(--line); background: var(--surface); border-left: 4px solid var(--warning); }
 .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .card-title { font-size: 15px; font-weight: 600; margin: 2px 0; font-family: var(--font-heading); color: var(--ink); }

@@ -40,6 +40,7 @@ RB.app = (function () {
     $('tab-status').hidden = !(me.isSuperAdmin || (me.approverOf || []).length);
     $('tab-settings').hidden = !me.isSuperAdmin;
     updateBadge(me.pendingApprovals || 0);
+    updateMineBadge(me.pendingYields || 0);
   }
 
   function onSignedIn(profile) {
@@ -103,7 +104,14 @@ RB.app = (function () {
     b.textContent = n ? t('approvals.badge', { n: n }) : '';
   }
 
+  /** 내 예약 탭의 '나에게 온 양보 질문' 건수 배지. */
+  function updateMineBadge(n) {
+    var b = $('mine-badge');
+    b.hidden = !n;
+    b.textContent = n ? t('approvals.badge', { n: n }) : '';
+  }
+
   document.addEventListener('DOMContentLoaded', init);
 
-  return { state: state, showTab: showTab, updateBadge: updateBadge };
+  return { state: state, showTab: showTab, updateBadge: updateBadge, updateMineBadge: updateMineBadge };
 })();

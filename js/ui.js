@@ -122,15 +122,20 @@ RB.ui = (function () {
     return el('div.loading-center', null, [el('div.spinner.small'), el('div', null, [text || RB.i18n.t('loading')])]);
   }
 
-  /** 확인 대화상자 (브라우저 confirm 대체). resolve(true|false) */
-  function confirm(text) {
+  /**
+   * 확인 대화상자 (브라우저 confirm 대체). resolve(true|false)
+   * 기본은 예약 취소용(빨간 버튼). 다른 확인에는 opts 로 문구·클래스를 바꾼다.
+   * @param {string} text
+   * @param {{okLabel?: string, okClass?: string}} [opts] okLabel 기본 btn.cancelBooking, okClass 기본 btn-danger
+   */
+  function confirm(text, opts) {
     return new Promise(function (resolve) {
       var m;
       var body = el('div', null, [
         el('p', null, [text]),
         el('div.actions', null, [
           el('button.btn', { type: 'button', onclick: function () { m.close(); resolve(false); } }, [RB.i18n.t('btn.close')]),
-          el('button.btn.btn-danger', { type: 'button', onclick: function (e) { busy(e.currentTarget); m.close(); resolve(true); } }, [RB.i18n.t('btn.cancelBooking')])
+          el('button.btn.' + ((opts && opts.okClass) || 'btn-danger'), { type: 'button', onclick: function (e) { busy(e.currentTarget); m.close(); resolve(true); } }, [(opts && opts.okLabel) || RB.i18n.t('btn.cancelBooking')])
         ])
       ]);
       m = modal(body, { title: '' });

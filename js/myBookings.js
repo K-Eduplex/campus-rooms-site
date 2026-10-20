@@ -19,11 +19,53 @@ RB.myBookings = (function () {
     host.appendChild(U.loadingBlock());
     RB.api.call('myBookings').then(function (data) {
       U.clear(host);
+      var asks = data.yieldRequests || [];
+      if (RB.app.updateMineBadge) RB.app.updateMineBadge(asks.length);
+      // 나에게 온 양보 질문은 맨 위에(메일 버튼과 같은 처리)
+      if (asks.length) {
+        host.appendChild(U.el('h2.section-title', null, [t('mine.yield.title')]));
+        host.appendChild(U.el('div.cards', null, asks.map(yieldCard)));
+      }
       var items = (data.events || []).map(function (e) { return item(e, false); })
         .concat((data.requests || []).map(function (q) { return item(q, true); }));
-      if (!items.length) { host.appendChild(U.el('p.muted', null, [t('mine.empty')])); return; }
+      if (!items.length) { if (!asks.length) host.appendChild(U.el('p.muted', null, [t('mine.empty')])); return; }
       host.appendChild(U.el('div.cards', null, items));
     }).catch(function (err) { U.clear(host); host.appendChild(U.el('p.error', null, [err.message || t('error.network')])); });
+  }
+
+  /** 양보 질문 카드: 누가 무엇을 원하는지, 내 예약, 답 기한, Yes / No. */
+  function yieldCard(q) {
+    var lang = RB.i18n.get();
+    var card, yesBtn, noBtn;
+    function answer(ans, btn) {
+      U.busy(btn);
+      RB.api.call('answerYield', { requestId: q.requestId, answer: ans }).then(function (r) {
+        if (r && r.ok === false) U.toast(t('result.error', { message: r.message }), 'error');
+        else U.toast((r && r.message) || '', 'ok');
+        if (currentHost) render(currentHost);   // 목록과 탭 배지를 서버 기준으로 다시 받는다
+      }).catch(function (err) {
+        btn.classList.remove('busy'); yesBtn.disabled = false; noBtn.disabled = false;
+        U.toast(t('result.error', { message: err.message || err.code }), 'error');
+      });
+      yesBtn.disabled = true; noBtn.disabled = true;
+    }
+    yesBtn = U.el('button.btn.btn-success.btn-sm', { type: 'button', onclick: function () {
+      U.confirm(t('mine.yield.confirm'), { okLabel: t('mine.yield.yes'), okClass: 'btn-success' }).then(function (yes) { if (yes) answer('yes', yesBtn); });
+    } }, [t('mine.yield.yes')]);
+    noBtn = U.el('button.btn.btn-sm', { type: 'button', onclick: function () { answer('no', noBtn); } }, [t('mine.yield.no')]);
+    var mine = (q.myBookings || []).map(function (b) {
+      return U.el('div.muted', null, [t('mine.yield.yourBooking') + ': ' + b.title + ' · ' + T.fmtRange(new Date(b.start), new Date(b.end), lang)]);
+    });
+    card = U.el('div.card.yield-card', null, [
+      U.el('div.card-title', null, [t('mine.yield.asks', { who: q.requesterName || q.requester, room: q.room })]),
+      U.el('div', null, [q.title + ' · ' + T.fmtRange(new Date(q.startAt), new Date(q.endAt), lang)]),
+      U.el('div.muted', null, [t('mine.yield.reason') + ': ' + (q.reason || '-') + (q.grade ? ' · ' + q.grade : '')])
+    ].concat(mine, [
+      U.el('div.yield-auto', null, [t('mine.yield.auto', { time: T.fmtDateTime(new Date(q.autoYieldAt), lang) })]),
+      q.approvalRoom ? U.el('div.muted.small', null, [t('mine.yield.approvalNote')]) : null,
+      U.el('div.actions', null, [yesBtn, noBtn])
+    ]));
+    return card;
   }
 
   function item(x, isRequest) {
