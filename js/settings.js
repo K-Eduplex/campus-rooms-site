@@ -259,7 +259,7 @@ RB.settings = (function () {
   }
 
   /**
-   * 승인 응답 현황 카드(읽기 전용). 기간 버튼(30/90일)으로 approvalStats 를 부르고 표 3개를 보여준다.
+   * 승인 응답 현황 카드(읽기 전용). 기간 버튼(30/90일)으로 approvalStats 를 부르고 표 4개를 보여준다.
    * 시간은 업무시간 기준(백엔드 계산).
    */
   function approvalStatsCard() {
@@ -283,7 +283,7 @@ RB.settings = (function () {
      */
     function showResult(data) {
       U.clear(out);
-      var pending = data.pending || [], byApprover = data.byApprover || [], byRoom = data.byRoom || [];
+      var pending = data.pending || [], byApprover = data.byApprover || [], byRoom = data.byRoom || [], byHolder = data.byHolder || [];
 
       out.appendChild(U.el('h4', null, [t('settings.approvalStats.pending')]));
       if (!pending.length) {
@@ -315,6 +315,18 @@ RB.settings = (function () {
           td(num(r.medianHours)), td(num(r.maxHours)), td(r.escalated), tdExpired(r.expired)
         ]);
       })));
+
+      out.appendChild(U.el('h4', null, [t('settings.approvalStats.byHolder')]));
+      if (!byHolder.length) {
+        out.appendChild(U.el('p.muted', null, [t('settings.approvalStats.noneHolder')]));
+      } else {
+        out.appendChild(table(['holder', 'asked', 'yes', 'no', 'noAnswer', 'median', 'longest'], byHolder.map(function (h) {
+          return U.el('tr', null, [
+            td(local(h.email)), td(h.asked), td(h.yes), td(h.no), tdExpired(h.noAnswer),
+            td(num(h.medianHours)), td(num(h.maxHours))
+          ]);
+        })));
+      }
 
       out.appendChild(U.el('p.muted', null, [t('settings.approvalStats.note')]));
     }

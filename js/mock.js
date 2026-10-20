@@ -491,6 +491,11 @@ RB.mock = (function () {
           { room: 'D313', approvers: ['budi@cga.sch.id', 'teacher@cga.sch.id'], requests: 14 * k, decided: 12 * k, medianHours: 4, maxHours: 31.5, escalated: 5 * k, expired: 2 },
           { room: 'S204', approvers: ['teacher@cga.sch.id'], requests: 7 * k, decided: 7 * k, medianHours: 1.5, maxHours: 4, escalated: 0, expired: 0 },
           { room: 'M101', approvers: ['admin@k-eduplex.net'], requests: 5 * k, decided: 5 * k, medianHours: 1, maxHours: 3.5, escalated: 0, expired: 0 }
+        ],
+        byHolder: [
+          { email: 'rina@cga.sch.id', asked: 5 * k, yes: 1 * k, no: 1 * k, noAnswer: 3, medianHours: 4.5, maxHours: 11 },
+          { email: 'teacher@cga.sch.id', asked: 4 * k, yes: 3 * k, no: 1 * k, noAnswer: 0, medianHours: 1.5, maxHours: 3 },
+          { email: 'budi@cga.sch.id', asked: 2 * k, yes: 2 * k, no: 0, noAnswer: 0, medianHours: 0.5, maxHours: 1 }
         ]
       });
     },
