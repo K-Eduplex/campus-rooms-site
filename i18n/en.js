@@ -165,6 +165,7 @@ RB.I18N.en = {
   'reject.note': 'Rejection note',
   'reject.note.ph': 'Sent to the requester.',
   'error.network': 'Could not reach the server. Please try again shortly.',
+  'error.networkWrite': 'The server did not answer. Your request may already have gone through — check My bookings before trying again.',
   'loading': 'Loading…',
   'mockBanner': 'Demo mode — fake data, not connected to the real calendar.',
   'settings.title': 'Administration',
