@@ -32,7 +32,7 @@ RB.mock = (function () {
     protectHours: 12,
     businessHours: '07:00-19:00',
     escalationHours: 4,
-    expiryHours: 24,
+    expiryHours: 12,
     minLeadHours: 2,
     domains: ['jiu.ac', 'k-eduplex.net', 'cga.sch.id'],
     superAdmins: ['admin@k-eduplex.net', 'jhlee@jiu.ac'],

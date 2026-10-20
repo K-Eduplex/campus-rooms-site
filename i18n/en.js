@@ -166,7 +166,7 @@ RB.I18N.en = {
   'settings.policy': 'Current policy values',
   'settings.policy.businessHours': 'Business hours',
   'settings.policy.escalation': 'Escalate after (business hours)',
-  'settings.policy.expiry': 'Auto-reject after (hours)',
+  'settings.policy.expiry': 'Auto-reject after (business hours)',
   'settings.policy.minLead': 'Auto-reject before start (hours)',
   'settings.policy.protect': 'Protected window before start — default (hours)',
   'settings.policy.slot': 'Slot (minutes)',
