@@ -62,6 +62,8 @@ button, input, select, textarea { font-family: inherit; }
 .kv-table.usage th { text-align: right; }
 .kv-table.usage th:first-child, .kv-table.usage td:first-child { text-align: left; }
 .kv-table.usage td { text-align: right; }
+.kv-table.usage.left th, .kv-table.usage.left td { text-align: left; }
+.warn-text { color: var(--danger); font-weight: 600; }
 .check-list { margin: 8px 0 0; padding-left: 18px; }
 .check-list .ok { color: var(--success); }
 .check-list .bad { color: var(--danger); }

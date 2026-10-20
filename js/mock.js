@@ -468,6 +468,33 @@ RB.mock = (function () {
       return delay(result);
     },
 
+    // 승인 응답 현황 mock: 합성 데이터(2건 대기, 담당자 3명, 방 3곳). 기간 버튼에 따라 건수만 늘어난다.
+    approvalStats: function (p) {
+      if (me.email !== 'admin@k-eduplex.net') return fail('FORBIDDEN', 'super admin only');
+      var days = Number(p && p.days) === 90 ? 90 : 30;
+      var k = days === 90 ? 3 : 1;
+      var now = new Date();
+      var HOUR = 3600 * 1000;
+      return delay({
+        generatedAt: now.toISOString(),
+        days: days,
+        pending: [
+          { requestId: 'R-2041', room: 'D313', title: 'Parent meeting', startAt: new Date(now.getTime() + 30 * HOUR).toISOString(), stage: 'approver', waitingHours: 14.5, approvers: ['teacher@cga.sch.id', 'budi@cga.sch.id'], escalated: true, expiresAt: new Date(now.getTime() + 6 * HOUR).toISOString() },
+          { requestId: 'R-2047', room: 'M101', title: 'Robotics club', startAt: new Date(now.getTime() + 52 * HOUR).toISOString(), stage: 'holder', waitingHours: 2, approvers: ['admin@k-eduplex.net'], escalated: false, expiresAt: new Date(now.getTime() + 20 * HOUR).toISOString() }
+        ],
+        byApprover: [
+          { email: 'budi@cga.sch.id', rooms: ['D313'], assigned: 9 * k, decided: 6 * k, medianHours: 9.5, maxHours: 31.5, escalated: 4 * k, expired: 2 },
+          { email: 'teacher@cga.sch.id', rooms: ['D313', 'S204'], assigned: 12 * k, decided: 11 * k, medianHours: 2.5, maxHours: 8, escalated: 1 * k, expired: 0 },
+          { email: 'admin@k-eduplex.net', rooms: ['M101'], assigned: 5 * k, decided: 5 * k, medianHours: 1, maxHours: 3.5, escalated: 0, expired: 0 }
+        ],
+        byRoom: [
+          { room: 'D313', approvers: ['budi@cga.sch.id', 'teacher@cga.sch.id'], requests: 14 * k, decided: 12 * k, medianHours: 4, maxHours: 31.5, escalated: 5 * k, expired: 2 },
+          { room: 'S204', approvers: ['teacher@cga.sch.id'], requests: 7 * k, decided: 7 * k, medianHours: 1.5, maxHours: 4, escalated: 0, expired: 0 },
+          { room: 'M101', approvers: ['admin@k-eduplex.net'], requests: 5 * k, decided: 5 * k, medianHours: 1, maxHours: 3.5, escalated: 0, expired: 0 }
+        ]
+      });
+    },
+
     reject: function (p) {
       var q = requests.filter(function (x) { return x.requestId === p.requestId; })[0];
       if (!q) return fail('NOT_FOUND', '');

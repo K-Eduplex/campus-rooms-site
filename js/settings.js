@@ -84,6 +84,7 @@ RB.settings = (function () {
         }))
       ]),
       zoomUsageCard(),
+      approvalStatsCard(),
       U.el('div.card', null, [
         U.el('h3', null, [t('settings.policy')]),
         U.el('table.kv-table', null, [
@@ -254,6 +255,95 @@ RB.settings = (function () {
       U.el('h3', null, [t('settings.zoomUsage')]),
       U.el('p.muted', null, [t('settings.zoomUsage.hint')]),
       U.el('div.actions', { style: { justifyContent: 'flex-start' } }, [loadBtn, refreshBtn]), out
+    ]);
+  }
+
+  /**
+   * 승인 응답 현황 카드(읽기 전용). 기간 버튼(30/90일)으로 approvalStats 를 부르고 표 3개를 보여준다.
+   * 시간은 업무시간 기준(백엔드 계산).
+   */
+  function approvalStatsCard() {
+    var out = U.el('div');
+    var btn30, btn90;
+
+    function local(e) { return String(e || '').split('@')[0]; }
+    function num(v) { return v === null || v === undefined ? '–' : String(v); }
+    function hours(v) { return v === null || v === undefined ? '–' : v.toFixed(1) + ' h'; }
+    function ck(key) { return t('settings.approvalStats.col.' + key); }
+    function table(heads, rows) {
+      var trs = [U.el('tr', null, heads.map(function (h) { return U.el('th', null, [ck(h)]); }))].concat(rows);
+      return U.el('div.table-scroll', null, [U.el('table.kv-table.perf.usage.left', null, trs)]);
+    }
+    function td(v) { return U.el('td', null, [String(v)]); }
+    function tdExpired(n) { return n > 0 ? U.el('td', null, [U.el('span.warn-text', null, [String(n)])]) : td(n); }
+
+    /**
+     * approvalStats API 응답을 표시한다.
+     * @param {Object} data approvalStats API 응답
+     */
+    function showResult(data) {
+      U.clear(out);
+      var pending = data.pending || [], byApprover = data.byApprover || [], byRoom = data.byRoom || [];
+
+      out.appendChild(U.el('h4', null, [t('settings.approvalStats.pending')]));
+      if (!pending.length) {
+        out.appendChild(U.el('p.muted', null, [t('settings.approvalStats.none')]));
+      } else {
+        out.appendChild(table(['request', 'room', 'title', 'starts', 'waiting', 'turn', 'escalated'], pending.map(function (p) {
+          return U.el('tr', null, [
+            td(p.requestId), td(p.room), td(p.title),
+            td(p.startAt ? RB.time.fmtDateTime(new Date(p.startAt), RB.i18n.get()) : ''),
+            td(hours(p.waitingHours)),
+            td(t('settings.approvalStats.stage.' + p.stage) + ': ' + (p.approvers || []).map(local).join(', ')),
+            td(p.escalated ? '✓' : '')
+          ]);
+        })));
+      }
+
+      out.appendChild(U.el('h4', null, [t('settings.approvalStats.byApprover')]));
+      out.appendChild(table(['approver', 'rooms', 'assigned', 'decided', 'median', 'longest', 'escalated', 'expired'], byApprover.map(function (a) {
+        return U.el('tr', null, [
+          td(local(a.email)), td((a.rooms || []).join(', ')), td(a.assigned), td(a.decided),
+          td(num(a.medianHours)), td(num(a.maxHours)), td(a.escalated), tdExpired(a.expired)
+        ]);
+      })));
+
+      out.appendChild(U.el('h4', null, [t('settings.approvalStats.byRoom')]));
+      out.appendChild(table(['room', 'approvers', 'requests', 'decided', 'median', 'longest', 'escalated', 'expired'], byRoom.map(function (r) {
+        return U.el('tr', null, [
+          td(r.room), td((r.approvers || []).map(local).join(', ')), td(r.requests), td(r.decided),
+          td(num(r.medianHours)), td(num(r.maxHours)), td(r.escalated), tdExpired(r.expired)
+        ]);
+      })));
+
+      out.appendChild(U.el('p.muted', null, [t('settings.approvalStats.note')]));
+    }
+
+    /**
+     * approvalStats API 를 부르고 두 버튼을 잠근다.
+     * @param {number} days 30 또는 90
+     * @param {HTMLElement} btn 클릭된 버튼
+     */
+    function load(days, btn) {
+      btn30.disabled = true;
+      btn90.disabled = true;
+      var done = U.busy(btn);
+      RB.api.call('approvalStats', { days: days }).then(showResult)
+        .catch(function (err) { U.toast(t('result.error', { message: err.message || err.code }), 'error'); })
+        .then(function () {
+          btn30.disabled = false;
+          btn90.disabled = false;
+          done();
+        });
+    }
+
+    btn30 = U.el('button.btn', { type: 'button', onclick: function () { load(30, btn30); } }, [t('settings.approvalStats.d30')]);
+    btn90 = U.el('button.btn', { type: 'button', onclick: function () { load(90, btn90); } }, [t('settings.approvalStats.d90')]);
+
+    return U.el('div.card', null, [
+      U.el('h3', null, [t('settings.approvalStats')]),
+      U.el('p.muted', null, [t('settings.approvalStats.hint')]),
+      U.el('div.actions', { style: { justifyContent: 'flex-start' } }, [btn30, btn90]), out
     ]);
   }
 
