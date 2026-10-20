@@ -3,7 +3,7 @@
  *
  * 무엇을 한다: 예약 입력 모달을 열고, 제출 결과(확정/충돌/대기/오류)에 따라 다음 화면을 보여준다.
  *              충돌이면 기존 예약·대체안을 보여주고 선점 요청(사유 필수) 또는 가능 회차만 예약을 제안한다.
- * 의존:        time.js, i18n.js, ui.js, api.js, app.js(state), board.js(refresh)
+ * 의존:        time.js, recurrence.js, i18n.js, ui.js, api.js, app.js(state), board.js(refresh)
  * 호출됨:      board.js(빈 칸 클릭, 선점 버튼), 상단 "예약하기" 버튼
  * 주의:        시간 선택지는 표시 범위를 슬롯 단위로 잘라 만든다. 종일 예약은 시작 07:00 종료 21:00 로 표현한다.
  * 정책 근거:   D-07(선점 사유 필수), D-09(제한값), D-10(입력 항목)
@@ -213,8 +213,10 @@ RB.bookingForm = (function () {
     ], 'none', function () { refreshRec(); });
     var untilIn = U.el('input.input', { type: 'date', name: 'until', min: T.today(), max: maxDate });
     var countIn = U.el('input.input', { type: 'number', name: 'count', min: 2, max: 52, placeholder: '' });
-    var recExtra = U.el('div.grid-2', null, [field('form.recurrence.until', untilIn), field('form.recurrence.count', countIn)]);
+    var recExtra = U.el('div.grid-2', null, [field('form.recurrence.until', untilIn), field('form.recurrence.count', countIn, t('form.recurrence.count.hint'))]);
     recExtra.hidden = true;
+    var recPreview = U.el('p.note.rec-preview');   // 실제로 잡힐 날짜 미리보기
+    recPreview.hidden = true;
     // 매주: 간격(1–4주) + 요일 체크. 시작 날짜의 요일은 항상 체크·잠금(날짜가 바뀌면 따라 움직인다)
     var REC_DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];   // 월요일부터
     var recPicked = {};   // 사용자가 직접 고른 요일
@@ -243,6 +245,18 @@ RB.bookingForm = (function () {
       var dow = new Date(y, mo - 1, d).getDay();   // 0=일
       return { day: d, code: REC_DAYS[(dow + 6) % 7], daysInMonth: new Date(y, mo, 0).getDate() };
     }
+    /** 반복 칸 아래 미리보기: 서버와 같은 규칙(RB.recurrence)으로 실제 날짜를 보여준다. */
+    function updatePreview() {
+      var rec = recObj(), st = recStart();
+      recPreview.hidden = !rec || !st;
+      if (recPreview.hidden) return;
+      if (!rec.count && !rec.until) { recPreview.textContent = t('rec.preview.need'); return; }
+      var lang = RB.i18n.get();
+      var shown = RB.recurrence.expand(dateIn.value, rec).map(function (k) { return T.fmtDate(k, lang); });
+      recPreview.textContent = shown.length <= 6
+        ? t('rec.preview', { n: shown.length, list: shown.join(', ') })
+        : t('rec.preview.many', { n: shown.length, first: shown[0], last: shown[shown.length - 1] });
+    }
     function refreshRec() {
       var freq = recSel.value, st = recStart();
       recExtra.hidden = freq === 'none';
@@ -260,9 +274,14 @@ RB.bookingForm = (function () {
         if (st.day + 7 > st.daysInMonth) opts.push({ value: 'last', label: t('rec.monthly.last', { weekday: t('rec.weekday.' + st.code) }) });
         fillSelect(recMonthlySel, opts, opts.some(function (o) { return o.value === prev; }) ? prev : 'date');
       }
+      updatePreview();
     }
     dateIn.addEventListener('change', refreshRec);
     dateIn.addEventListener('input', refreshRec);
+    [recIntervalSel, recMonthlySel, untilIn, countIn].concat(recDayBoxes.map(function (lab) { return lab.firstChild; })).forEach(function (n) {
+      n.addEventListener('change', updatePreview);
+      n.addEventListener('input', updatePreview);
+    });
     refreshRec();
 
     // 대신 예약(2026-10-21): 체크해야 이메일 칸이 나온다(옵트인). 편집 모드에서는 숨긴다(예약 주인은 바꿀 수 없다).
@@ -343,7 +362,7 @@ RB.bookingForm = (function () {
         U.el('summary', null, [t('form.optional')]),
         U.el('div.grid-2', null, [field('form.grade', gradeSel), field('form.headcount', headIn)]),
         field('form.note', noteIn),
-        field('form.recurrence', recSel), recWeekly, recMonthly, recExtra
+        field('form.recurrence', recSel), recWeekly, recMonthly, recExtra, recPreview
       ]),
       errBox,
       U.el('div.actions', null, [U.el('button.btn', { type: 'button', onclick: U.closeModal }, [t('btn.cancel')]), submitBtn])
@@ -354,11 +373,7 @@ RB.bookingForm = (function () {
     }
     function read() {
       var key = dateIn.value;
-      var rec = null, wk = recSel.value === 'weekly', mo = recSel.value === 'monthly';
-      if (recSel.value !== 'none') rec = {
-        freq: recSel.value, until: untilIn.value || null, count: countIn.value ? Number(countIn.value) : null,
-        interval: wk ? Number(recIntervalSel.value) : undefined, days: wk ? checkedDays() : undefined, monthly: mo ? recMonthlySel.value : undefined
-      };
+      var rec = recObj();
       return {
         calendarId: resSel.value,
         start: T.make(key, Number(startSel.value)).toISOString(),
@@ -370,6 +385,15 @@ RB.bookingForm = (function () {
         zoomHost: (zoomHostToggle.checked && !zoomHostRow.hidden) ? zoomHostIn.value.trim().toLowerCase() : '',
         recurrence: rec
       };
+    }
+    /** 지금 입력칸의 반복 규칙. 반복 없음이면 null. read() 와 미리보기가 같이 쓴다. */
+    function recObj() {
+      var rec = null, wk = recSel.value === 'weekly', mo = recSel.value === 'monthly';
+      if (recSel.value !== 'none') rec = {
+        freq: recSel.value, until: untilIn.value || null, count: countIn.value ? Number(countIn.value) : null,
+        interval: wk ? Number(recIntervalSel.value) : undefined, days: wk ? checkedDays() : undefined, monthly: mo ? recMonthlySel.value : undefined
+      };
+      return rec;
     }
     function validate(p) {
       if (!p.calendarId || !dateIn.value || !p.title) return t('form.err.required');

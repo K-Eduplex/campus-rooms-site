@@ -3,7 +3,7 @@
  *
  * 무엇을 한다: docs/02-아키텍처.md 3절의 API 계약과 같은 모양으로 응답한다. 메모리 안에서
  *              예약·충돌·승인 흐름을 흉내 내므로 화면 개발과 시연에 쓴다.
- * 의존:        config.js, time.js
+ * 의존:        config.js, time.js, recurrence.js
  * 호출됨:      api.js (mock 모드일 때), auth.js (가짜 로그인 UI)
  * 주의:        실제 정책 판정(보호 구간, 반복 전개 등)은 단순화되어 있다. 정확한 동작은 백엔드가 기준.
  *              새로고침하면 데이터가 초기화된다.
@@ -154,61 +154,17 @@ RB.mock = (function () {
     return out;
   }
 
-  /** 반복 규칙 → 회차 [{start,end}] (단순 전개, 최대 52회) */
+  /** 반복 규칙 → 회차 [{start,end}] (최대 52회). 날짜는 RB.recurrence.expand 가 정한다. */
   function expand(p) {
-    // 실제 서버(Recurrence.gs)와 같은 날짜를 만든다(2026-10-20).
+    // 실제 서버(Recurrence.gs)와 같은 날짜를 만든다(2026-10-20). 각 회차는 시작 시각·길이를 그대로 유지한다.
     var start = new Date(p.start), end = new Date(p.end);
     var dur = end.getTime() - start.getTime();
-    var list = [{ start: start, end: end }];
-    var rec = p.recurrence;
-    if (!rec || !rec.freq || rec.freq === 'none') return list;
-    var until = rec.until ? T.make(rec.until, 24 * 60) : null;
-    var count = rec.count ? Number(rec.count) : 52;
-    var cap = Math.min(count, 52);
-    // 시작 회차는 이미 list에 있으므로 그보다 뒤인 날짜만 넣는다. false 를 돌려주면 전개를 멈춘다.
-    function add(s) {
-      if (list.length >= cap || (until && s > until)) return false;
-      if (s > start) list.push({ start: s, end: new Date(s.getTime() + dur) });
-      return true;
-    }
-    if (rec.freq === 'daily') {
-      for (var i = 1; list.length < cap; i++) {
-        var d = new Date(start); d.setDate(start.getDate() + i);
-        if (!add(d)) break;
-      }
-    } else if (rec.freq === 'weekly' || rec.freq === 'biweekly') {
-      var interval = rec.freq === 'biweekly' ? 2 : (Number(rec.interval) || 1);
-      var CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']; // getDay() 순서
-      var ORDER = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']; // 월요일 시작 순서
-      var wanted = (rec.days || []).concat([CODES[start.getDay()]]);
-      var monday = new Date(start); monday.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-      var stop = false;
-      for (var w = 0; !stop; w += interval) {
-        for (var k = 0; k < 7 && !stop; k++) {
-          if (wanted.indexOf(ORDER[k]) === -1) continue;
-          var sd = new Date(monday); sd.setDate(monday.getDate() + w * 7 + k);
-          stop = !add(sd);
-        }
-      }
-    } else {
-      var mode = rec.monthly || 'date';
-      var sDay = start.getDate(), wd = start.getDay(), nth = Math.ceil(sDay / 7);
-      for (var m = 0; m < 60 && list.length < cap; m++) {
-        var y = start.getFullYear(), mo = start.getMonth() + m, day;
-        if (mode === 'date') {
-          day = sDay;
-        } else if (mode === 'nth') {
-          day = 1 + (wd - new Date(y, mo, 1).getDay() + 7) % 7 + (nth - 1) * 7;
-        } else {
-          var lastDay = new Date(y, mo + 1, 0).getDate();
-          day = lastDay - (new Date(y, mo, lastDay).getDay() - wd + 7) % 7;
-        }
-        var cand = new Date(start); cand.setFullYear(y, mo, day);
-        if (cand.getDate() !== day) continue; // 그 달에 없는 날짜는 건너뜀(보정하지 않음)
-        if (!add(cand)) break;
-      }
-    }
-    return list;
+    var min = T.minutesOfDay(start);
+    return RB.recurrence.expand(T.dateKey(start), p.recurrence).map(function (key, i) {
+      if (i === 0) return { start: start, end: end };
+      var s = T.make(key, min);
+      return { start: s, end: new Date(s.getTime() + dur) };
+    });
   }
 
   // ---- API 핸들러 ----------------------------------------------------------
