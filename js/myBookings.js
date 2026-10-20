@@ -39,6 +39,9 @@ RB.myBookings = (function () {
       ]),
       U.el('div.card-title', null, [x.title]),
       U.el('div.muted', null, [T.fmtRange(start, end, lang), x.requestId ? ' · ' + x.requestId : '']),
+      // 대신 예약(2026-10-21): 내가 남을 위해 했거나(bookedFor) 남이 나를 위해 한(bookedBy) 예약 표시
+      x.bookedFor ? U.el('div.muted.small', null, [t('mine.bookedFor', { who: x.bookedForName || x.bookedFor })]) : null,
+      x.bookedBy ? U.el('div.muted.small', null, [t('mine.bookedBy', { who: x.bookedBy })]) : null,
       // 편집이 안 되는 예약은 이유를 한 줄로(캘린더에서 잡은 예약 / 반복 / 대기 중) — "왜 Edit 이 없지?" 문의 방지
       !isRequest && !x.editable ? U.el('div.muted.small', null, [t(!x.isBot ? 'mine.noEdit.calendar' : x.recurring ? 'mine.noEdit.recurring' : 'mine.noEdit.pending')]) : null,
       U.el('div.actions', null, [

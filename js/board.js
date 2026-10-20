@@ -527,6 +527,7 @@ RB.board = (function () {
     var body = U.el('div', null, [
       U.el('div.kv', null, [U.el('b', null, [resource.name]), ' · ', T.fmtRange(ev.start, ev.end, lang)]),
       U.el('div.kv', null, [t('popover.organizer') + ': ', ev.organizerName || ev.requesterName || ev.organizerEmail || '']),
+      ev.bookedBy && ev.bookedBy !== ev.organizerEmail ? U.el('div.kv', null, [t('mine.bookedBy', { who: ev.bookedBy })]) : null,
       ev.warning ? U.el('p.note', null, [t('board.directWarning')]) : null,
       U.el('div.kv', null, [
         U.el('span.badge.' + (ev.status === 'PENDING' ? 'badge-pending' : 'badge-ok'), null, [t(isPast ? 'popover.past' : 'popover.status.' + ev.status)]),

@@ -138,7 +138,7 @@ RB.mock = (function () {
   function serialize(e) {
     var out = Object.assign({}, e);
     out.start = e.start.toISOString(); out.end = e.end.toISOString();
-    if (me) out.isMine = e.organizerEmail === me.email || e.requesterEmail === me.email;
+    if (me) out.isMine = e.organizerEmail === me.email || e.requesterEmail === me.email || e.bookedBy === me.email;
     if (e.conflicts) out.conflicts = e.conflicts.map(serialize);
     if (e.createdAt) out.createdAt = e.createdAt.toISOString();
     if (e.expiresAt) out.expiresAt = e.expiresAt.toISOString();
@@ -286,10 +286,15 @@ RB.mock = (function () {
     },
 
     myBookings: function () {
-      var mine = events.filter(function (e) { return e.organizerEmail === me.email && e.end > new Date(); })
+      var mine = events.filter(function (e) { return (e.organizerEmail === me.email || e.bookedBy === me.email) && e.end > new Date(); })
         .sort(function (a, b) { return a.start - b.start; }).map(serialize)
-        .map(function (e) { e.editable = e.status === 'CONFIRMED'; e.guests = e.guests || []; return e; });
-      var reqs = requests.filter(function (q) { return q.requesterEmail === me.email && (q.status === 'DRAFT' || (!q.eventId && (q.status === 'PENDING' || q.status === 'ESCALATED'))); }).map(serialize);
+        .map(function (e) {
+          e.editable = e.status === 'CONFIRMED'; e.guests = e.guests || [];
+          // 대신 예약 표시: 내가 남을 위해 한 예약은 bookedFor, 남이 나를 위해 한 예약은 bookedBy
+          if (e.bookedBy === me.email && e.organizerEmail !== me.email) { e.bookedFor = e.organizerEmail; e.bookedForName = e.organizerName; e.bookedBy = null; }
+          return e;
+        });
+      var reqs = requests.filter(function (q) { return (q.requesterEmail === me.email || q.bookedBy === me.email) && (q.status === 'DRAFT' || (!q.eventId && (q.status === 'PENDING' || q.status === 'ESCALATED'))); }).map(serialize);
       return delay({ events: mine, requests: reqs });
     },
 
@@ -298,7 +303,7 @@ RB.mock = (function () {
       var e = events.filter(function (x) { return x.eventId === p.eventId; })[0];
       if (!e) return fail('NOT_FOUND', 'no such booking');
       var r = res(e.calendarId);
-      if (e.organizerEmail !== me.email && !isApprover(r)) return fail('FORBIDDEN', 'not yours');
+      if (e.organizerEmail !== me.email && e.bookedBy !== me.email && !isApprover(r)) return fail('FORBIDDEN', 'not yours');
       var ns = new Date(p.start), ne = new Date(p.end);
       var changed = [];
       if (ns.getTime() !== e.start.getTime() || ne.getTime() !== e.end.getTime()) {
@@ -318,7 +323,7 @@ RB.mock = (function () {
       if (idx !== -1) {
         var e = events[idx];
         var r = res(e.calendarId);
-        if (e.organizerEmail !== me.email && !isApprover(r)) return fail('FORBIDDEN', 'not yours');
+        if (e.organizerEmail !== me.email && e.bookedBy !== me.email && !isApprover(r)) return fail('FORBIDDEN', 'not yours');
         events.splice(idx, 1);
         requests.forEach(function (q) { if (q.eventId === e.eventId && q.status !== 'APPROVED') q.status = 'CANCELLED'; });
         return delay({ ok: true });
@@ -554,11 +559,20 @@ RB.mock = (function () {
     }
   };
 
+  /** 대신 예약(bookFor): 예약 주인은 그 사람, 예약한 사람은 bookedBy. 내 이메일이면 일반 예약. */
+  function owner(p) {
+    var f = String(p.bookFor || '').trim().toLowerCase();
+    if (!f || f === me.email) return { email: me.email, name: me.name, bookedBy: null };
+    var hit = MOCK_DIR.filter(function (u) { return u.email === f; })[0];
+    return { email: f, name: hit ? hit.name : f.split('@')[0], bookedBy: me.email };
+  }
+
   function pushEvents(r, p, occ, status) {
+    var o2 = owner(p);
     return occ.map(function (o) {
       var e = {
         calendarId: r.calendarId, eventId: 'e' + (++seq), title: p.title, start: o.start, end: o.end,
-        organizerEmail: me.email, organizerName: me.name, status: status, grade: p.grade || 'OTHER'
+        organizerEmail: o2.email, organizerName: o2.name, status: status, grade: p.grade || 'OTHER', bookedBy: o2.bookedBy
       };
       events.push(e);
       return e;
@@ -566,9 +580,10 @@ RB.mock = (function () {
   }
 
   function pushRequest(type, r, p, occ, event) {
+    var o2 = owner(p);
     var q = {
       requestId: 'R-' + String(++seq).padStart(6, '0'), type: type, status: 'PENDING', createdAt: new Date(),
-      requesterEmail: me.email, requesterName: me.name, calendarId: r.calendarId, resourceName: r.name,
+      requesterEmail: o2.email, requesterName: o2.name, bookedBy: o2.bookedBy, calendarId: r.calendarId, resourceName: r.name,
       title: p.title, start: occ.start, end: occ.end, grade: p.grade || 'OTHER', headcount: p.headcount, note: p.note,
       eventId: event ? event.eventId : null, expiresAt: new Date(Date.now() + 24 * 3600000), escalated: false
     };

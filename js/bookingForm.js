@@ -216,6 +216,10 @@ RB.bookingForm = (function () {
     var recExtra = U.el('div.grid-2', null, [field('form.recurrence.until', untilIn), field('form.recurrence.count', countIn)]);
     recExtra.hidden = true;
 
+    // 대신 예약(2026-10-21): 비워 두면 내 예약. 편집 모드에서는 숨긴다(예약 주인은 바꿀 수 없다).
+    var bookForIn = U.el('input.input', { type: 'email', name: 'bookFor', placeholder: t('form.bookFor.ph'), autocomplete: 'off' });
+    var bookForField = field('form.bookFor', bookForIn, t('form.bookFor.hint'));
+    bookForField.hidden = !!edit;
     var zoomHostIn = U.el('input.input', { type: 'email', name: 'zoomHost', placeholder: t('form.zoomHost.ph'), autocomplete: 'off' });
     var zoomField = field('form.zoomHost', zoomHostIn, t('form.zoomHost.hint'));
     var zoomNote = U.el('p.note', null, [t('form.zoomNote')]);
@@ -267,6 +271,7 @@ RB.bookingForm = (function () {
       field('form.resource', resSel), modeNote, zoomNote,
       U.el('div.grid-3', null, [field('form.date', dateIn), field('form.start', startSel), field('form.end', endSel)]),
       field('form.summary', titleIn),
+      bookForField,
       field('form.guests', guests.node, t('form.guests.hint')),
       zoomField,
       edit ? U.el('p.note', null, [t('form.editNote')]) : U.el('details.optional', null, [
@@ -289,6 +294,7 @@ RB.bookingForm = (function () {
         title: titleIn.value.trim(), grade: gradeSel.value,
         headcount: headIn.value ? Number(headIn.value) : null, note: noteIn.value.trim() || null,
         guests: guests.values(),
+        bookFor: bookForField.hidden ? '' : bookForIn.value.trim().toLowerCase(),
         zoomHost: zoomField.hidden ? '' : zoomHostIn.value.trim().toLowerCase(),
         recurrence: rec
       };
@@ -302,6 +308,7 @@ RB.bookingForm = (function () {
       var bad = (p.guests || []).filter(function (g) { return !EMAIL_RE.test(g); });
       if (bad.length) return t('form.err.guests', { list: bad.join(', ') });
       if (p.zoomHost && !EMAIL_RE.test(p.zoomHost)) return t('form.err.zoomHost');
+      if (p.bookFor && !EMAIL_RE.test(p.bookFor)) return t('form.err.bookFor');
       return null;
     }
 
