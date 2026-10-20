@@ -216,12 +216,27 @@ RB.bookingForm = (function () {
     var recExtra = U.el('div.grid-2', null, [field('form.recurrence.until', untilIn), field('form.recurrence.count', countIn)]);
     recExtra.hidden = true;
 
-    // 대신 예약(2026-10-21): 비워 두면 내 예약. 편집 모드에서는 숨긴다(예약 주인은 바꿀 수 없다).
+    // 대신 예약(2026-10-21): 체크해야 이메일 칸이 나온다(옵트인). 편집 모드에서는 숨긴다(예약 주인은 바꿀 수 없다).
     var bookForIn = U.el('input.input', { type: 'email', name: 'bookFor', placeholder: t('form.bookFor.ph'), autocomplete: 'off' });
     var bookForField = field('form.bookFor', bookForIn, t('form.bookFor.hint'));
-    bookForField.hidden = !!edit;
+    var bookForToggle = U.el('input', { type: 'checkbox', name: 'bookForToggle', onchange: function () {
+      bookForBox.hidden = !bookForToggle.checked;
+      if (bookForToggle.checked) bookForIn.focus(); else bookForIn.value = '';
+    } });
+    var bookForRow = U.el('label', null, [bookForToggle, ' ' + t('form.bookFor.toggle')]);
+    bookForRow.hidden = !!edit;
+    var bookForBox = U.el('div', null, [U.el('p.note', null, [t('form.bookFor.notice')]), bookForField]);
+    bookForBox.hidden = true;
     var zoomHostIn = U.el('input.input', { type: 'email', name: 'zoomHost', placeholder: t('form.zoomHost.ph'), autocomplete: 'off' });
     var zoomField = field('form.zoomHost', zoomHostIn, t('form.zoomHost.hint'));
+    // Zoom 호스트도 대신 예약과 같은 옵트인: 체크해야 호스트 이메일 칸이 나온다. 호스트는 참석자로 초대된다(intentFromParams_).
+    var zoomHostToggle = U.el('input', { type: 'checkbox', name: 'zoomHostToggle', onchange: function () {
+      zoomHostBox.hidden = !zoomHostToggle.checked;
+      if (zoomHostToggle.checked) zoomHostIn.focus(); else zoomHostIn.value = '';
+    } });
+    var zoomHostRow = U.el('label', null, [zoomHostToggle, ' ' + t('form.zoomHost.toggle')]);
+    var zoomHostBox = U.el('div', null, [U.el('p.note', null, [t('form.zoomHost.notice')]), zoomField]);
+    zoomHostBox.hidden = true;
     var zoomNote = U.el('p.note', null, [t('form.zoomNote')]);
     var modeNote = U.el('p.note');
     function updateModeNote() {
@@ -236,9 +251,9 @@ RB.bookingForm = (function () {
     function onResourceChange() {
       updateModeNote();
       var zoomOn = !edit && isZoomRes(resSel.value);
-      zoomField.hidden = !zoomOn;
       zoomNote.hidden = !zoomOn;
-      if (!zoomOn) zoomHostIn.value = '';
+      zoomHostRow.hidden = !zoomOn;
+      if (!zoomOn) { zoomHostToggle.checked = false; zoomHostBox.hidden = true; zoomHostIn.value = ''; }
       var zoom = isZoomRes(resSel.value);
       fillSelect(startSel, timeOptions(false, zoom), Number(startSel.value));
       fillSelect(endSel, timeOptions(true, zoom).slice(1), Number(endSel.value));
@@ -271,9 +286,9 @@ RB.bookingForm = (function () {
       field('form.resource', resSel), modeNote, zoomNote,
       U.el('div.grid-3', null, [field('form.date', dateIn), field('form.start', startSel), field('form.end', endSel)]),
       field('form.summary', titleIn),
-      bookForField,
+      bookForRow, bookForBox,
       field('form.guests', guests.node, t('form.guests.hint')),
-      zoomField,
+      zoomHostRow, zoomHostBox,
       edit ? U.el('p.note', null, [t('form.editNote')]) : U.el('details.optional', null, [
         U.el('summary', null, [t('form.optional')]),
         U.el('div.grid-2', null, [field('form.grade', gradeSel), field('form.headcount', headIn)]),
@@ -294,8 +309,8 @@ RB.bookingForm = (function () {
         title: titleIn.value.trim(), grade: gradeSel.value,
         headcount: headIn.value ? Number(headIn.value) : null, note: noteIn.value.trim() || null,
         guests: guests.values(),
-        bookFor: bookForField.hidden ? '' : bookForIn.value.trim().toLowerCase(),
-        zoomHost: zoomField.hidden ? '' : zoomHostIn.value.trim().toLowerCase(),
+        bookFor: (bookForToggle.checked && !edit) ? bookForIn.value.trim().toLowerCase() : '',
+        zoomHost: (zoomHostToggle.checked && !zoomHostRow.hidden) ? zoomHostIn.value.trim().toLowerCase() : '',
         recurrence: rec
       };
     }
@@ -307,7 +322,9 @@ RB.bookingForm = (function () {
       if (!startUnchanged && new Date(p.start) < new Date()) return t('form.err.past');
       var bad = (p.guests || []).filter(function (g) { return !EMAIL_RE.test(g); });
       if (bad.length) return t('form.err.guests', { list: bad.join(', ') });
+      if (zoomHostToggle.checked && !zoomHostRow.hidden && !p.zoomHost) return t('form.err.zoomHost');
       if (p.zoomHost && !EMAIL_RE.test(p.zoomHost)) return t('form.err.zoomHost');
+      if (bookForToggle.checked && !edit && !p.bookFor) return t('form.err.bookFor');
       if (p.bookFor && !EMAIL_RE.test(p.bookFor)) return t('form.err.bookFor');
       return null;
     }
