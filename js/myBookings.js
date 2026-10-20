@@ -84,15 +84,15 @@ RB.myBookings = (function () {
       // 대신 예약(2026-10-21): 내가 남을 위해 했거나(bookedFor) 남이 나를 위해 한(bookedBy) 예약 표시
       x.bookedFor ? U.el('div.muted.small', null, [t('mine.bookedFor', { who: x.bookedForName || x.bookedFor })]) : null,
       x.bookedBy ? U.el('div.muted.small', null, [t('mine.bookedBy', { who: x.bookedBy })]) : null,
-      // 편집이 안 되는 예약은 이유를 한 줄로(캘린더에서 잡은 예약 / 반복 / 대기 중) — "왜 Edit 이 없지?" 문의 방지
-      !isRequest && !x.editable ? U.el('div.muted.small', null, [t(!x.isBot ? 'mine.noEdit.calendar' : x.recurring ? 'mine.noEdit.recurring' : 'mine.noEdit.pending')]) : null,
+      // 편집이 안 되는 예약은 이유를 한 줄로(캘린더에서 잡은 예약 / 대기 중) — "왜 Edit 이 없지?" 문의 방지
+      !isRequest && !x.editable ? U.el('div.muted.small', null, [t(!x.isBot ? 'mine.noEdit.calendar' : 'mine.noEdit.pending')]) : null,
       U.el('div.actions', null, [
         isDraft ? U.el('button.btn.btn-warn.btn-sm', { type: 'button', onclick: function () { RB.bookingForm.openComplete(x.requestId); } }, [t('mine.addReason')]) : null,
-        // 사이트 예약(단일 회차·확정)만 편집 가능(D-25). 저장되면 목록을 다시 받는다.
+        // 사이트 예약(확정, 반복 예약은 회차별)만 편집 가능(D-25). 저장되면 목록을 다시 받는다.
         !isRequest && x.editable ? U.el('button.btn.btn-sm', { type: 'button', onclick: function () {
           RB.bookingForm.open({
             calendarId: x.calendarId, date: T.dateKey(start), startMin: T.minutesOfDay(start), endMin: T.minutesOfDay(end),
-            edit: { eventId: x.eventId, title: x.title, guests: x.guests || [], grade: x.grade, organizerEmail: x.organizerEmail, organizerName: x.organizerName, isMine: x.isMine, onDone: function () { if (currentHost) render(currentHost); } }
+            edit: { eventId: x.eventId, title: x.title, guests: x.guests || [], grade: x.grade, organizerEmail: x.organizerEmail, organizerName: x.organizerName, isMine: x.isMine, occurrenceOnly: !!x.recurring, onDone: function () { if (currentHost) render(currentHost); } }
           });
         } }, [t('btn.edit')]) : null,
         U.el('button.btn.btn-danger.btn-sm', { type: 'button', onclick: function () {
@@ -102,7 +102,20 @@ RB.myBookings = (function () {
               .then(function () { U.toast(t('toast.cancelled'), 'ok'); card.remove(); RB.board.removeLocal(isRequest ? x.requestId : x.eventId); })
               .catch(function (err) { U.toast(t('result.error', { message: err.message || err.code }), 'error'); });
           });
-        } }, [t('btn.cancelBooking')])
+        } }, [t(!isRequest && x.recurring ? 'btn.cancelOccurrence' : 'btn.cancelBooking')]),
+        // 반복 예약: 이 날짜와 이후 회차를 모두 취소(이전 회차는 남는다)
+        !isRequest && x.seriesCancelable ? U.el('button.btn.btn-danger.btn-sm', { type: 'button', onclick: function () {
+          U.confirm(t('confirm.cancelFollowing')).then(function (yes) {
+            if (!yes) return;
+            RB.api.call('cancel', { key: x.eventId, calendarId: x.calendarId, scope: 'following' })
+              .then(function () {
+                U.toast(t('toast.cancelled'), 'ok');
+                if (RB.board && RB.board.refresh) RB.board.refresh();
+                if (currentHost) render(currentHost);
+              })
+              .catch(function (err) { U.toast(t('result.error', { message: err.message || err.code }), 'error'); });
+          });
+        } }, [t('btn.cancelFollowing')]) : null
       ])
     ]);
     return card;

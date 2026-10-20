@@ -339,6 +339,7 @@ RB.mock = (function () {
         .sort(function (a, b) { return a.start - b.start; }).map(serialize)
         .map(function (e) {
           e.editable = e.status === 'CONFIRMED'; e.guests = e.guests || [];
+          e.recurring = !!e.seriesId; e.seriesCancelable = e.recurring && e.status === 'CONFIRMED';
           // 대신 예약 표시: 내가 남을 위해 한 예약은 bookedFor, 남이 나를 위해 한 예약은 bookedBy
           if (e.bookedBy === me.email && e.organizerEmail !== me.email) { e.bookedFor = e.organizerEmail; e.bookedForName = e.organizerName; e.bookedBy = null; }
           return e;
@@ -384,6 +385,11 @@ RB.mock = (function () {
         var e = events[idx];
         var r = res(e.calendarId);
         if (e.organizerEmail !== me.email && e.bookedBy !== me.email && !isApprover(r)) return fail('FORBIDDEN', 'not yours');
+        if (p.scope === 'following' && e.seriesId) {
+          // 이 날짜와 이후 회차를 모두 취소(이전 회차는 남는다)
+          for (var j = events.length - 1; j >= 0; j--) { if (events[j].seriesId === e.seriesId && events[j].start >= e.start) events.splice(j, 1); }
+          return delay({ ok: true, message: 'Cancelled this and the following dates.' });
+        }
         events.splice(idx, 1);
         requests.forEach(function (q) { if (q.eventId === e.eventId && q.status !== 'APPROVED') q.status = 'CANCELLED'; });
         return delay({ ok: true });
@@ -629,11 +635,13 @@ RB.mock = (function () {
 
   function pushEvents(r, p, occ, status) {
     var o2 = owner(p);
+    var seriesId = occ.length > 1 ? 'S' + (++seq) : null;   // 반복 예약의 회차들을 묶는다(mock)
     return occ.map(function (o) {
       var e = {
         calendarId: r.calendarId, eventId: 'e' + (++seq), title: p.title, start: o.start, end: o.end,
         organizerEmail: o2.email, organizerName: o2.name, status: status, grade: p.grade || 'OTHER', bookedBy: o2.bookedBy
       };
+      if (seriesId) e.seriesId = seriesId;
       events.push(e);
       return e;
     });

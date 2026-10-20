@@ -160,7 +160,7 @@ RB.bookingForm = (function () {
    */
   /**
    * 예약 폼. preset.edit 가 있으면 편집 모드(D-25): 방 고정, 제목·참석자·시간만 고치고 `update` 를 부른다.
-   * @param {Object} preset {calendarId?, date?, startMin?, endMin?, edit?:{eventId, title, guests:[email], grade?, organizerEmail?, organizerName?, isMine?, onDone:function}}
+   * @param {Object} preset {calendarId?, date?, startMin?, endMin?, edit?:{eventId, title, guests:[email], grade?, organizerEmail?, organizerName?, isMine?, occurrenceOnly?, onDone:function}}
    */
   function open(preset) {
     preset = preset || {};
@@ -332,6 +332,7 @@ RB.bookingForm = (function () {
           .then(done);
       }
     }, [
+      edit && edit.occurrenceOnly ? U.el('p.note', null, [t('form.editOccurrence')]) : null,
       field('form.resource', resSel), modeNote, zoomNote,
       U.el('div.grid-3', null, [field('form.date', dateIn), field('form.start', startSel), field('form.end', endSel)]),
       field('form.summary', titleIn),
