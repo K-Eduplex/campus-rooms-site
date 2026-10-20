@@ -208,13 +208,62 @@ RB.bookingForm = (function () {
     var guests = guestChips(edit ? edit.guests : null);
     var noteIn = U.el('textarea.input', { name: 'note', rows: 2, placeholder: t('form.note.ph') });
     var recSel = select('recFreq', [
-      { value: 'none', label: t('rec.none') }, { value: 'weekly', label: t('rec.weekly') },
-      { value: 'biweekly', label: t('rec.biweekly') }, { value: 'daily', label: t('rec.daily') }
-    ], 'none', function () { recExtra.hidden = recSel.value === 'none'; });
+      { value: 'none', label: t('rec.none') }, { value: 'daily', label: t('rec.daily') },
+      { value: 'weekly', label: t('rec.weekly') }, { value: 'monthly', label: t('rec.monthly') }
+    ], 'none', function () { refreshRec(); });
     var untilIn = U.el('input.input', { type: 'date', name: 'until', min: T.today(), max: maxDate });
     var countIn = U.el('input.input', { type: 'number', name: 'count', min: 2, max: 52, placeholder: '' });
     var recExtra = U.el('div.grid-2', null, [field('form.recurrence.until', untilIn), field('form.recurrence.count', countIn)]);
     recExtra.hidden = true;
+    // 매주: 간격(1–4주) + 요일 체크. 시작 날짜의 요일은 항상 체크·잠금(날짜가 바뀌면 따라 움직인다)
+    var REC_DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];   // 월요일부터
+    var recPicked = {};   // 사용자가 직접 고른 요일
+    var recIntervalSel = U.el('select.select', { name: 'recInterval' });
+    fillSelect(recIntervalSel, [1, 2, 3, 4].map(function (n) {
+      return { value: n, label: n === 1 ? t('rec.weeks.1') : t('rec.weeks.n', { n: n }) };
+    }), 1);
+    var recDayBoxes = REC_DAYS.map(function (code) {
+      var cb = U.el('input', { type: 'checkbox', name: 'recDay', value: code, onchange: function () { recPicked[code] = cb.checked; } });
+      return U.el('label', null, [cb, ' ' + t('rec.day.' + code) + '  ']);
+    });
+    var recWeekly = U.el('div', null, [
+      field('form.recurrence.every', recIntervalSel),
+      U.el('div.field', null, [U.el('span.field-label', null, [t('form.recurrence.days')]), U.el('div', null, recDayBoxes)])
+    ]);
+    recWeekly.hidden = true;
+    // 매월: 같은 날짜 / n번째 요일 / 마지막 요일. 선택한 날짜에서 선택지를 만든다
+    var recMonthlySel = U.el('select.select', { name: 'recMonthly' });
+    var recMonthly = field('form.recurrence.monthly', recMonthlySel);
+    recMonthly.hidden = true;
+    /** 선택한 날짜 → {day, code(MO..SU), daysInMonth}. 날짜가 비었으면 null */
+    function recStart() {
+      var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIn.value || '');
+      if (!m) return null;
+      var y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+      var dow = new Date(y, mo - 1, d).getDay();   // 0=일
+      return { day: d, code: REC_DAYS[(dow + 6) % 7], daysInMonth: new Date(y, mo, 0).getDate() };
+    }
+    function refreshRec() {
+      var freq = recSel.value, st = recStart();
+      recExtra.hidden = freq === 'none';
+      recWeekly.hidden = freq !== 'weekly';
+      recMonthly.hidden = freq !== 'monthly';
+      recDayBoxes.forEach(function (lab) {
+        var cb = lab.firstChild, isStart = !!st && cb.value === st.code;
+        cb.disabled = isStart;
+        cb.checked = isStart || !!recPicked[cb.value];
+        cb.title = isStart ? t('rec.day.start') : '';
+      });
+      if (st) {
+        var prev = recMonthlySel.value, n = Math.ceil(st.day / 7), opts = [{ value: 'date', label: t('rec.monthly.date', { day: st.day }) }];
+        if (n <= 4) opts.push({ value: 'nth', label: t('rec.monthly.nth', { nth: t('rec.nth.' + n), weekday: t('rec.weekday.' + st.code) }) });
+        if (st.day + 7 > st.daysInMonth) opts.push({ value: 'last', label: t('rec.monthly.last', { weekday: t('rec.weekday.' + st.code) }) });
+        fillSelect(recMonthlySel, opts, opts.some(function (o) { return o.value === prev; }) ? prev : 'date');
+      }
+    }
+    dateIn.addEventListener('change', refreshRec);
+    dateIn.addEventListener('input', refreshRec);
+    refreshRec();
 
     // 대신 예약(2026-10-21): 체크해야 이메일 칸이 나온다(옵트인). 편집 모드에서는 숨긴다(예약 주인은 바꿀 수 없다).
     var bookForIn = U.el('input.input', { type: 'email', name: 'bookFor', placeholder: t('form.bookFor.ph'), autocomplete: 'off' });
@@ -293,15 +342,22 @@ RB.bookingForm = (function () {
         U.el('summary', null, [t('form.optional')]),
         U.el('div.grid-2', null, [field('form.grade', gradeSel), field('form.headcount', headIn)]),
         field('form.note', noteIn),
-        field('form.recurrence', recSel), recExtra
+        field('form.recurrence', recSel), recWeekly, recMonthly, recExtra
       ]),
       errBox,
       U.el('div.actions', null, [U.el('button.btn', { type: 'button', onclick: U.closeModal }, [t('btn.cancel')]), submitBtn])
     ]);
 
+    function checkedDays() {
+      return recDayBoxes.map(function (lab) { return lab.firstChild; }).filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
+    }
     function read() {
       var key = dateIn.value;
-      var rec = recSel.value === 'none' ? null : { freq: recSel.value, until: untilIn.value || null, count: countIn.value ? Number(countIn.value) : null };
+      var rec = null, wk = recSel.value === 'weekly', mo = recSel.value === 'monthly';
+      if (recSel.value !== 'none') rec = {
+        freq: recSel.value, until: untilIn.value || null, count: countIn.value ? Number(countIn.value) : null,
+        interval: wk ? Number(recIntervalSel.value) : undefined, days: wk ? checkedDays() : undefined, monthly: mo ? recMonthlySel.value : undefined
+      };
       return {
         calendarId: resSel.value,
         start: T.make(key, Number(startSel.value)).toISOString(),
