@@ -500,6 +500,48 @@ RB.mock = (function () {
       });
     },
 
+    // 결재 현황 탭 mock: 슈퍼 관리자 = 전체, 담당자(teacher@cga.sch.id) = 자기 방(D313, S204)만, 그 밖 = FORBIDDEN.
+    approvalBoard: function () {
+      var isAdmin = me.email === 'admin@k-eduplex.net';
+      if (!isAdmin && !RESOURCES.some(isApprover)) return fail('FORBIDDEN', 'Approvers only.');
+      var now = new Date();
+      var HOUR = 3600 * 1000;
+      var pending = [
+        { requestId: 'R-2041', room: 'D313', title: 'Parent meeting', startAt: new Date(now.getTime() + 30 * HOUR).toISOString(), stage: 'approver', waitingHours: 14.5, approvers: ['teacher@cga.sch.id', 'budi@cga.sch.id'], escalated: true, expiresAt: new Date(now.getTime() + 6 * HOUR).toISOString() },
+        { requestId: 'R-2047', room: 'M101', title: 'Robotics club', startAt: new Date(now.getTime() + 52 * HOUR).toISOString(), stage: 'holder', waitingHours: 2, approvers: ['admin@k-eduplex.net'], escalated: false, expiresAt: new Date(now.getTime() + 20 * HOUR).toISOString() },
+        { requestId: 'R-2050', room: 'S204', title: 'Choir rehearsal', startAt: new Date(now.getTime() + 26 * HOUR).toISOString(), stage: 'approver', waitingHours: 0.8, approvers: ['teacher@cga.sch.id'], escalated: false, expiresAt: new Date(now.getTime() + 11 * HOUR).toISOString() }
+      ];
+      var byApprover = [
+        { email: 'budi@cga.sch.id', rooms: ['D313'], assigned: 9, decided: 6, medianHours: 9.5, maxHours: 31.5, escalated: 4, expired: 2 },
+        { email: 'teacher@cga.sch.id', rooms: ['D313', 'S204'], assigned: 12, decided: 11, medianHours: 2.5, maxHours: 8, escalated: 1, expired: 0 },
+        { email: 'admin@k-eduplex.net', rooms: ['M101'], assigned: 5, decided: 5, medianHours: 1, maxHours: 3.5, escalated: 0, expired: 0 }
+      ];
+      var byRoom = [
+        { room: 'D313', approvers: ['budi@cga.sch.id', 'teacher@cga.sch.id'], requests: 14, decided: 12, medianHours: 4, maxHours: 31.5, escalated: 5, expired: 2 },
+        { room: 'S204', approvers: ['teacher@cga.sch.id'], requests: 7, decided: 7, medianHours: 1.5, maxHours: 4, escalated: 0, expired: 0 },
+        { room: 'M101', approvers: ['admin@k-eduplex.net'], requests: 5, decided: 5, medianHours: 1, maxHours: 3.5, escalated: 0, expired: 0 }
+      ];
+      var byHolder = [
+        { email: 'rina@cga.sch.id', asked: 5, yes: 1, no: 1, noAnswer: 3, medianHours: 4.5, maxHours: 11 },
+        { email: 'teacher@cga.sch.id', asked: 4, yes: 3, no: 1, noAnswer: 0, medianHours: 1.5, maxHours: 3 }
+      ];
+      if (!isAdmin) {
+        var mine = RESOURCES.filter(isApprover).map(function (r) { return r.name; });
+        pending = pending.filter(function (p) { return mine.indexOf(p.room) !== -1; });
+        byRoom = byRoom.filter(function (r) { return mine.indexOf(r.room) !== -1; });
+        byApprover = byApprover.filter(function (a) { return a.email === me.email; });
+        byHolder = [];
+      }
+      var oldest = 0, esc = 0, expired = 0;
+      pending.forEach(function (p) { if (p.waitingHours > oldest) oldest = p.waitingHours; if (p.escalated) esc++; });
+      byRoom.forEach(function (r) { expired += r.expired; });
+      return delay({
+        generatedAt: now.toISOString(), scope: isAdmin ? 'all' : 'mine',
+        summary: { waiting: pending.length, oldestHours: oldest, escalatedNow: esc, expired30: expired },
+        pending: pending, byApprover: byApprover, byRoom: byRoom, byHolder: byHolder
+      });
+    },
+
     reject: function (p) {
       var q = requests.filter(function (x) { return x.requestId === p.requestId; })[0];
       if (!q) return fail('NOT_FOUND', '');

@@ -224,3 +224,18 @@ body.modal-open { overflow: hidden; }
   .toolbar-label { width: 100%; margin-left: 0; }
   .legend-hint { margin-left: 0; width: 100%; }
 }
+
+/* ---------- 결재 현황 탭 ---------- */
+.status-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr)); gap: 12px; margin-bottom: 4px; }
+.stat-card { border-left: 4px solid var(--line); }
+.stat-value { font-family: var(--font-heading); font-size: 24px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.stat-warn { border-left: 4px solid var(--warning); }
+.stat-danger { border-left: 4px solid var(--danger); }
+.stat-block { border-left: 4px solid var(--success); }
+.stat-block.stat-warn { border-left-color: var(--warning); }
+.wait-card { border-left: 4px solid var(--success); }
+.wait-card.wait-warn { border-left-color: var(--warning); background: color-mix(in srgb, var(--highlight) 12%, var(--surface)); }
+.wait-card.wait-late { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }
+.metric { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; padding: 2px 0; color: var(--text); }
+.metric-warn b { color: var(--warning); }
+.status-note { margin-top: 18px; }

@@ -12,7 +12,7 @@ RB.app = (function () {
   var U = RB.ui, t = function (k, v) { return RB.i18n.t(k, v); };
 
   var state = { user: null, config: null, resources: [], tab: 'board' };
-  var TABS = ['board', 'mine', 'approvals', 'settings'];
+  var TABS = ['board', 'mine', 'approvals', 'status', 'settings'];
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -37,6 +37,7 @@ RB.app = (function () {
     $('login').hidden = true; $('app').hidden = false;
     $('user-name').textContent = me.name || me.email;
     $('tab-approvals').hidden = !(me.isSuperAdmin || (me.approverOf || []).length);
+    $('tab-status').hidden = !(me.isSuperAdmin || (me.approverOf || []).length);
     $('tab-settings').hidden = !me.isSuperAdmin;
     updateBadge(me.pendingApprovals || 0);
   }
@@ -82,6 +83,7 @@ RB.app = (function () {
   }
 
   function showTab(tab) {
+    if (state.tab === 'status' && tab !== 'status' && RB.status && RB.status.stop) RB.status.stop();   // 현황 탭을 떠나면 자동 갱신을 멈춘다
     state.tab = tab;
     TABS.forEach(function (k) {
       $('tab-' + k).classList.toggle('active', k === tab);
@@ -90,6 +92,7 @@ RB.app = (function () {
     if (tab === 'board') RB.board.render($('view-board'));
     if (tab === 'mine') RB.myBookings.render($('view-mine'));
     if (tab === 'approvals') RB.approvals.render($('view-approvals'));
+    if (tab === 'status') RB.status.render($('view-status'));
     if (tab === 'settings') RB.settings.render($('view-settings'));
   }
 
