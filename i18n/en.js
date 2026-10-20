@@ -76,7 +76,7 @@ RB.I18N.en = {
   'form.guests.hint': 'Optional. Attendees get a calendar invitation.',
   'form.zoomHost': 'Host email',
   'form.zoomHost.ph': 'name@example.com',
-  'form.zoomHost.hint': 'Optional. The host key is emailed to this address about 15 minutes before each session. Leave empty to host yourself.',
+  'form.zoomHost.hint': 'Optional. This person is also invited to the calendar event, and the host key is emailed to them about 15 minutes before each session. Leave empty to host yourself.',
   'form.zoomNote': 'A Zoom link is emailed to you once the booking is approved.',
   'form.err.guests': 'Check the attendee email addresses: {list}',
   'form.err.zoomHost': 'Check the host email address.',
