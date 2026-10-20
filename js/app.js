@@ -57,6 +57,7 @@ RB.app = (function () {
     // 2) 서버에서 최신 상태 + 이번 주 현황판을 한 번에 받는다
     if (!painted) U.signingIn(true, t('login.loadingRooms'));
     RB.api.call('init', range).then(function (res) {
+      if (res.session) RB.auth.setSession(res.session);   // 첫 로그인: init 이 세션까지 준다(다른 호출보다 먼저 저장)
       try { localStorage.setItem(SNAP_KEY, JSON.stringify({ email: profile.email, me: res.me, resources: res.resources })); } catch (e) { /* 무시 */ }
       applyUser(res.me, res.resources);
       if (res.board) RB.board.preload(range, res.board);

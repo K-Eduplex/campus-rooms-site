@@ -97,12 +97,24 @@ RB.ui = (function () {
   }
 
   /** 로그인 카드 ↔ "Signing you in…" 스피너 전환. text 로 단계 문구를 바꿀 수 있다. */
+  var slowTimer = null;
   function signingIn(on, text) {
     var form = document.getElementById('login-form'), box = document.getElementById('signing-in');
     if (!form || !box) return;
     form.hidden = !!on; box.hidden = !on;
     var p = document.getElementById('signing-in-text');
     if (p) p.textContent = text || RB.i18n.t('login.signingIn');
+    // 4초 넘게 걸리면 서버(Apps Script 콜드 스타트)를 깨우는 중이라는 안내를 덧붙인다
+    if (slowTimer) { clearTimeout(slowTimer); slowTimer = null; }
+    var old = document.getElementById('signing-in-hint');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    if (on) {
+      slowTimer = setTimeout(function () {
+        slowTimer = null;
+        if (box.hidden || document.getElementById('signing-in-hint')) return;
+        box.appendChild(el('p.muted', { id: 'signing-in-hint' }, [RB.i18n.t('login.slowHint')]));
+      }, 4000);
+    }
   }
 
   /** 영역 안에 가운데 스피너 + 문구 */

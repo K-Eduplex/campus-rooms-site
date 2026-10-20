@@ -6,8 +6,9 @@
  *              mock 모드에서는 가짜 사용자 선택 UI 를 대신 보여준다.
  * 의존:        config.js, i18n.js, (실모드) https://accounts.google.com/gsi/client
  * 호출됨:      app.js 가 init() 을 부르고 onSignedIn 콜백을 받는다. api.js 가 token() 을 읽는다.
- * 주의:        Google ID 토큰은 1시간짜리라 로그인 직후 백엔드 세션 토큰(12시간)으로 교환하고 localStorage 에 보관한다.
- *              이후 호출은 전부 세션 토큰. 세션이 만료되면 GIS 에 새 ID 토큰을 요청해 다시 교환한다.
+ * 주의:        Google ID 토큰은 1시간짜리라 백엔드 세션 토큰(12시간)으로 바꿔 localStorage 에 보관한다.
+ *              첫 로그인: 'session' 을 따로 부르지 않고 app 의 init 을 ID 토큰으로 불러 그 응답에서 세션을 받는다
+ *              (setSession — 콜드 스타트 왕복 1회 절약). 세션 만료 후 갱신: GIS 에 새 ID 토큰을 요청해 'session' 으로 교환한다.
  * 정책 근거:   D-03
  */
 window.RB = window.RB || {};
@@ -48,6 +49,13 @@ RB.auth = (function () {
     });
   }
 
+  /** init 응답이 가져온 세션({token, exp, user})을 저장한다. */
+  function setSession(s) {
+    if (!s || !s.token || !s.user) return;
+    saveSession({ token: s.token, exp: s.exp, email: s.user.email, name: s.user.name });
+    if (profile) { profile.email = s.user.email || profile.email; profile.name = s.user.name || profile.name; }
+  }
+
   /** 세션 기준 만료 판정(60초 여유). 세션이 없으면 ID 토큰 기준. */
   function isExpired() {
     if (session) return session.exp - 60000 < Date.now();
@@ -62,11 +70,14 @@ RB.auth = (function () {
     idToken = response.credential;
     var p = decode(idToken) || {};
     profile = { email: p.email, name: p.name, picture: p.picture };
+    if (!wasSignedIn) {   // 첫 로그인: 세션은 init 응답이 가져온다
+      if (onSignedIn) onSignedIn(profile);
+      return;
+    }
     exchange().then(function () {
       // 세션 갱신을 기다리던 호출들을 깨운다
       var waiters = refreshWaiters; refreshWaiters = [];
       waiters.forEach(function (w) { w.resolve(); });
-      if (!wasSignedIn && onSignedIn) onSignedIn(profile);
     }).catch(function (err) {
       var waiters = refreshWaiters; refreshWaiters = [];
       waiters.forEach(function (w) { w.reject && w.reject(err); });
@@ -166,5 +177,5 @@ RB.auth = (function () {
     exchange().then(function () { if (onSignedIn) onSignedIn(profile); });
   }
 
-  return { init: init, token: token, sessionToken: sessionToken, user: user, isExpired: isExpired, signOut: signOut, onAuthError: onAuthError, ensureFresh: ensureFresh };
+  return { init: init, token: token, sessionToken: sessionToken, setSession: setSession, user: user, isExpired: isExpired, signOut: signOut, onAuthError: onAuthError, ensureFresh: ensureFresh };
 })();

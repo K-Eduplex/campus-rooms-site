@@ -442,6 +442,14 @@ RB.mock = (function () {
       var d3 = curMonth + '-12';
       var d4 = curMonth + '-17';
       var d5 = curMonth + '-22';
+      // 2개 이상 동시 사용일: 월 순서대로 2·7·12·17·22일을 채워 25일을 만든다(중복 없음, 정렬됨)
+      var dates2 = [];
+      for (var mi = 0; mi < monthsList.length && dates2.length < 25; mi++) {
+        for (var di = 0; di < 5 && dates2.length < 25; di++) {
+          var dd = 2 + di * 5;
+          dates2.push(monthsList[mi] + '-' + (dd < 10 ? '0' + dd : dd));
+        }
+      }
       var result = {
         generatedAt: now.toISOString(),
         accounts: accounts,
@@ -449,10 +457,11 @@ RB.mock = (function () {
         perAccountMonth: perAccountMonth,
         concurrency: {
           max: 4,
-          minutesAtLeast: { 1: 9000, 2: 2400, 3: 390, 4: 60 },
-          daysAtLeast: { 3: [d1, d2, d3, d4, d5], 4: [d3] }
+          minutesAtLeast: { 1: 9000, 2: 1536, 3: 390, 4: 60 },
+          daysAtLeast: { 2: dates2, 3: [d1, d2, d3, d4, d5], 4: [d3] }
         },
         unavailableMonths: unavailable,
+        errors: [],
         fromCache: !(p && p.refresh) && zoomUsageLoaded
       };
       zoomUsageLoaded = true;
