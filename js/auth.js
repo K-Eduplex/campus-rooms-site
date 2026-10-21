@@ -92,6 +92,7 @@ RB.auth = (function () {
     try { sessionStorage.removeItem('rb.idt'); } catch (e) { /* 무시 — 예전 버전이 남긴 ID 토큰 사본 정리 */ }
     try { localStorage.removeItem('rb.snapshot'); localStorage.removeItem('rb.recent'); } catch (e) { /* 무시 */ }   // 개인정보: 디렉터리 캐시·최근 초대자
     RB.board && RB.board.clearPersisted && RB.board.clearPersisted();   // 개인정보: 현황판 사본 삭제
+    RB.myBookings && RB.myBookings.clearPersisted && RB.myBookings.clearPersisted();   // 개인정보: 내 예약 사본 삭제
     if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
     if (onSignedOut) onSignedOut();
   }
