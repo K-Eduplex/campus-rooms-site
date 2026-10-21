@@ -170,7 +170,6 @@ RB.I18N.en = {
   'mine.confirmed': 'Confirmed',
   'mine.request': 'Request',
   'mine.noEdit.calendar': 'Booked in Google Calendar — change or cancel it there.',
-  'mine.noEdit.recurring': 'Repeating booking — to change it, cancel and book again.',
   'mine.noEdit.pending': 'Under review — to change it, cancel and book again.',
   'confirm.cancel': 'Cancel this booking?',
   'confirm.cancelFollowing': 'Cancel this date and all following dates of this repeating booking? Earlier dates stay.',
