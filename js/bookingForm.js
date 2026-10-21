@@ -303,8 +303,10 @@ RB.bookingForm = (function () {
       if (zoomHostToggle.checked) zoomHostIn.focus(); else zoomHostIn.value = '';
     } });
     var zoomHostRow = U.el('label', null, [zoomHostToggle, ' ' + t('form.zoomHost.toggle')]);
-    var zoomHostBox = U.el('div', null, [U.el('p.note', null, [t('form.zoomHost.notice')]), zoomField]);
+    var zoomHostBox = U.el('div', null, [U.el('p.note', null, [t('form.zoomHost.notice')]), zoomField, edit ? U.el('p.note', null, [t('form.zoomHost.editNote')]) : null]);
     zoomHostBox.hidden = true;
+    // 편집 모드(Zoom): 지금 호스트가 있으면 체크하고 칸을 채운다. 체크를 풀고 저장하면 호스트 지우기('' 전송).
+    if (edit && edit.zoomHost) { zoomHostToggle.checked = true; zoomHostBox.hidden = false; zoomHostIn.value = edit.zoomHost; }
     var zoomNote = U.el('p.note', null, [t('form.zoomNote')]);
     var modeNote = U.el('p.note');
     function updateModeNote() {
@@ -315,11 +317,11 @@ RB.bookingForm = (function () {
       modeNote.textContent = r && r.mode === 'APPROVAL' ? t(selfApprover ? 'form.approvalNoteSelf' : 'form.approvalNote') : '';
       modeNote.hidden = !modeNote.textContent;
     }
-    /** 장소가 바뀌면 모드 안내, Zoom 전용 입력 표시, 시간 선택지 범위(Zoom 24h / 일반)를 갱신한다. 편집 모드에서는 Zoom 입력을 숨긴다(편집은 호스트 변경 없음). */
+    /** 장소가 바뀌면 모드 안내, Zoom 전용 입력 표시, 시간 선택지 범위(Zoom 24h / 일반)를 갱신한다. 편집 모드에서도 Zoom 방이면 호스트 입력을 보인다(예약 전체 날짜에 적용). */
     function onResourceChange() {
       updateModeNote();
-      var zoomOn = !edit && isZoomRes(resSel.value);
-      zoomNote.hidden = !zoomOn;
+      var zoomOn = isZoomRes(resSel.value);
+      zoomNote.hidden = !zoomOn || !!edit;   // 새 예약 안내는 편집 모드에서 숨긴다
       zoomHostRow.hidden = !zoomOn;
       if (!zoomOn) { zoomHostToggle.checked = false; zoomHostBox.hidden = true; zoomHostIn.value = ''; }
       var zoom = isZoomRes(resSel.value);
@@ -340,7 +342,7 @@ RB.bookingForm = (function () {
         errBox.hidden = true; var done = U.busy(submitBtn);
         RB.people.remember(params.guests);
         if (edit) {
-          RB.api.call('update', { eventId: edit.eventId, title: params.title, start: params.start, end: params.end, guests: params.guests })
+          RB.api.call('update', { eventId: edit.eventId, title: params.title, start: params.start, end: params.end, guests: params.guests, zoomHost: isZoomRes(resSel.value) ? params.zoomHost : undefined })   // Zoom 이면 항상 보낸다('' = 호스트 지우기)
             .then(function (result) { handleUpdate(result, params, edit, errBox); })
             .catch(function (err) { errBox.textContent = t('result.error', { message: err.message || err.code }); errBox.hidden = false; })
             .then(done);

@@ -93,6 +93,7 @@ RB.I18N.en = {
   'form.zoomHost.notice': 'They are invited to the calendar event and get the Zoom link, and the host key is emailed to them about 15 minutes before each session — they can claim host without signing in to Zoom. Leave this unticked to host yourself.',
   'form.zoomNote': 'A Zoom link is emailed to you once the booking is approved.',
   'form.err.guests': 'Check the attendee email addresses: {list}',
+  'form.zoomHost.editNote': 'Changing the host applies to all dates of this booking. Host keys go to the new host from the next session.',
   'form.err.zoomHost': 'Check the host email address.',
   'form.note': 'Note',
   'form.note.ph': 'Equipment requests etc. (optional)',

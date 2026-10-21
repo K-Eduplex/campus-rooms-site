@@ -92,7 +92,7 @@ RB.myBookings = (function () {
         !isRequest && x.editable ? U.el('button.btn.btn-sm', { type: 'button', onclick: function () {
           RB.bookingForm.open({
             calendarId: x.calendarId, date: T.dateKey(start), startMin: T.minutesOfDay(start), endMin: T.minutesOfDay(end),
-            edit: { eventId: x.eventId, title: x.title, guests: x.guests || [], grade: x.grade, organizerEmail: x.organizerEmail, organizerName: x.organizerName, isMine: x.isMine, occurrenceOnly: !!x.recurring, onDone: function () { if (currentHost) render(currentHost); } }
+            edit: { eventId: x.eventId, title: x.title, guests: x.guests || [], zoomHost: x.zoomHost || '', grade: x.grade, organizerEmail: x.organizerEmail, organizerName: x.organizerName, isMine: x.isMine, occurrenceOnly: !!x.recurring, onDone: function () { if (currentHost) render(currentHost); } }
           });
         } }, [t('btn.edit')]) : null,
         U.el('button.btn.btn-danger.btn-sm', { type: 'button', onclick: function () {
