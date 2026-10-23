@@ -90,7 +90,7 @@ RB.I18N.en = {
   'form.zoomHost.ph': 'name@example.com',
   'form.zoomHost.hint': 'Their email (can be outside the school).',
   'form.zoomHost.toggle': 'Someone else will host (e.g. a guest lecturer)',
-  'form.zoomHost.notice': 'They are invited to the calendar event and get the Zoom link, and the host key is emailed to them about 15 minutes before each session — they can claim host without signing in to Zoom. Leave this unticked to host yourself.',
+  'form.zoomHost.notice': 'They are invited to the calendar event and get the Zoom link, and the host key is emailed to them about 20 minutes before each session — they can claim host without signing in to Zoom. Leave this unticked to host yourself.',
   'form.zoomNote': 'A Zoom link is emailed to you once the booking is approved.',
   'form.err.guests': 'Check the attendee email addresses: {list}',
   'form.zoomHost.editNote': 'Changing the host applies to all dates of this booking. Host keys go to the new host from the next session.',
