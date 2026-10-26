@@ -160,7 +160,7 @@ RB.bookingForm = (function () {
    */
   /**
    * 예약 폼. preset.edit 가 있으면 편집 모드(D-25): 방 고정, 제목·참석자·시간만 고치고 `update` 를 부른다.
-   * @param {Object} preset {calendarId?, date?, startMin?, endMin?, edit?:{eventId, title, guests:[email], grade?, organizerEmail?, organizerName?, isMine?, occurrenceOnly?, onDone:function}}
+   * @param {Object} preset {calendarId?, date?, startMin?, endMin?, edit?:{eventId, title, guests:[email], zoomHost?, aiSummary?, grade?, organizerEmail?, organizerName?, isMine?, occurrenceOnly?, onDone:function}}
    */
   function open(preset) {
     preset = preset || {};
@@ -307,6 +307,11 @@ RB.bookingForm = (function () {
     zoomHostBox.hidden = true;
     // 편집 모드(Zoom): 지금 호스트가 있으면 체크하고 칸을 채운다. 체크를 풀고 저장하면 호스트 지우기('' 전송).
     if (edit && edit.zoomHost) { zoomHostToggle.checked = true; zoomHostBox.hidden = false; zoomHostIn.value = edit.zoomHost; }
+    // Zoom AI 요약 메일(D-32): 체크해야 요약 메일을 받는다(옵트인). Zoom 방이고 서버 스위치(zoomAiSummary)가 켜졌을 때만 보인다.
+    var aiSummaryIn = U.el('input', { type: 'checkbox', name: 'aiSummary' });
+    var aiSummaryRow = U.el('div', null, [U.el('label', null, [aiSummaryIn, ' ' + t('form.aiSummary')]), U.el('p.note', null, [t('form.aiSummary.notice')])]);
+    aiSummaryRow.hidden = true;
+    if (edit) aiSummaryIn.checked = !!edit.aiSummary;
     var zoomNote = U.el('p.note', null, [t('form.zoomNote')]);
     var modeNote = U.el('p.note');
     function updateModeNote() {
@@ -324,6 +329,8 @@ RB.bookingForm = (function () {
       zoomNote.hidden = !zoomOn || !!edit;   // 새 예약 안내는 편집 모드에서 숨긴다
       zoomHostRow.hidden = !zoomOn;
       if (!zoomOn) { zoomHostToggle.checked = false; zoomHostBox.hidden = true; zoomHostIn.value = ''; }
+      aiSummaryRow.hidden = !(zoomOn && cfg().zoomAiSummary);
+      if (aiSummaryRow.hidden) aiSummaryIn.checked = false;
       var zoom = isZoomRes(resSel.value);
       fillSelect(startSel, timeOptions(false, zoom), Number(startSel.value));
       fillSelect(endSel, timeOptions(true, zoom).slice(1), Number(endSel.value));
@@ -342,7 +349,8 @@ RB.bookingForm = (function () {
         errBox.hidden = true; var done = U.busy(submitBtn);
         RB.people.remember(params.guests);
         if (edit) {
-          RB.api.call('update', { eventId: edit.eventId, title: params.title, start: params.start, end: params.end, guests: params.guests, zoomHost: isZoomRes(resSel.value) ? params.zoomHost : undefined })   // Zoom 이면 항상 보낸다('' = 호스트 지우기)
+          RB.api.call('update', { eventId: edit.eventId, title: params.title, start: params.start, end: params.end, guests: params.guests, zoomHost: isZoomRes(resSel.value) ? params.zoomHost : undefined,
+            aiSummary: (isZoomRes(resSel.value) && cfg().zoomAiSummary && aiSummaryIn.checked !== !!edit.aiSummary) ? aiSummaryIn.checked : undefined })   // Zoom 호스트는 항상 보낸다('' = 지우기). aiSummary 는 체크가 처음 값에서 바뀐 때만
             .then(function (result) { handleUpdate(result, params, edit, errBox); })
             .catch(function (err) { errBox.textContent = t('result.error', { message: err.message || err.code }); errBox.hidden = false; })
             .then(done);
@@ -359,7 +367,7 @@ RB.bookingForm = (function () {
       field('form.summary', titleIn),
       bookForRow, bookForBox,
       field('form.guests', guests.node, t('form.guests.hint')),
-      zoomHostRow, zoomHostBox,
+      zoomHostRow, zoomHostBox, aiSummaryRow,
       edit ? U.el('p.note', null, [t('form.editNote')]) : U.el('details.optional', null, [
         U.el('summary', null, [t('form.optional')]),
         U.el('div.grid-2', null, [field('form.grade', gradeSel), field('form.headcount', headIn)]),
@@ -385,6 +393,7 @@ RB.bookingForm = (function () {
         guests: guests.values(),
         bookFor: (bookForToggle.checked && !edit) ? bookForIn.value.trim().toLowerCase() : '',
         zoomHost: (zoomHostToggle.checked && !zoomHostRow.hidden) ? zoomHostIn.value.trim().toLowerCase() : '',
+        aiSummary: !aiSummaryRow.hidden && aiSummaryIn.checked,
         recurrence: rec
       };
     }

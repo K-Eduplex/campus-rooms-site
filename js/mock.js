@@ -28,6 +28,7 @@ RB.mock = (function () {
     slotMinutes: 30,
     displayHours: '07:00-21:00',
     zoomDisplayHours: '00:00-24:00',
+    zoomAiSummary: true,   // D-32: Zoom AI 요약 메일 옵트인 체크박스 표시
     maxAdvanceDays: 180,
     protectHours: 12,
     businessHours: '07:00-19:00',

@@ -94,6 +94,8 @@ RB.I18N.en = {
   'form.zoomNote': 'A Zoom link is emailed to you once the booking is approved.',
   'form.err.guests': 'Check the attendee email addresses: {list}',
   'form.zoomHost.editNote': 'Changing the host applies to all dates of this booking. Host keys go to the new host from the next session.',
+  'form.aiSummary': 'Email me the AI meeting summary',
+  'form.aiSummary.notice': 'When the meeting starts, Zoom AI summary turns on automatically and participants see it. After each session the summary is emailed to you (and the host). No recording or transcript is sent.',
   'form.err.zoomHost': 'Check the host email address.',
   'form.note': 'Note',
   'form.note.ph': 'Equipment requests etc. (optional)',
