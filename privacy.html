@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/tokens.css?v=8cd6c2e">
-  <link rel="stylesheet" href="css/app.css?v=8cd6c2e">
+  <link rel="stylesheet" href="css/tokens.css?v=2d65819">
+  <link rel="stylesheet" href="css/app.css?v=2d65819">
   <style>
     .doc { max-width: 720px; margin: 32px auto; padding: 0 20px 60px; line-height: 1.6; }
     .doc h1 { font-size: 24px; margin-bottom: 4px; }
@@ -29,9 +29,9 @@
 
   <main class="doc">
     <h1>Privacy Policy</h1>
-    <p class="meta">Last updated: 6 September 2026</p>
+    <p class="meta">Last updated: 26 October 2026</p>
 
-    <p>Campus Rooms is an internal tool used by JIU (jiu.ac, k-eduplex.net) and CGA (cga.sch.id) staff to view and reserve shared campus rooms. This page explains what information the tool uses and how it is handled.</p>
+    <p>Campus Rooms is an internal tool used by JIU (jiu.ac, k-eduplex.net) and CGA (cga.sch.id) staff to view and reserve shared campus rooms and the schools' Zoom accounts. This page explains what information the tool uses and how it is handled.</p>
 
     <h2>Who operates this tool</h2>
     <p>The tool is operated by the JIU campus administration. Contact: <a href="mailto:its@k-eduplex.net">its@k-eduplex.net</a>.</p>
@@ -41,6 +41,8 @@
       <li><b>Google account identity.</b> When you sign in with Google, we receive your email address and display name. We use them only to identify you, to check that your account belongs to one of the participating schools, and to record who made or approved a booking.</li>
       <li><b>Booking details you enter.</b> Room, date and time, title (purpose), optional purpose grade, expected headcount, notes, and the reason for a preemption request.</li>
       <li><b>Calendar data.</b> The tool reads the shared room calendars in the schools' Google Workspace to show availability, and writes bookings to them as calendar events that invite you and the room.</li>
+      <li><b>Zoom bookings.</b> When you book one of the school's Zoom accounts, the tool creates a Zoom meeting on that account. Zoom receives the meeting topic (account name and your booking title) and the tool records the meeting ID, your e-mail address and the host's e-mail address so it can send the join link and a host key before each session. Join links and passcodes are sent only by e-mail and in the calendar event; host keys are sent only by e-mail.</li>
+      <li><b>Zoom AI meeting summary (optional).</b> If you tick "Email me the AI meeting summary" when booking a Zoom account, Zoom's AI summary starts automatically when the meeting starts, and every participant sees that it is on. After each session the tool e-mails the summary (overview, topics and next steps) to you and, if you named one, the host. No recording or transcript is sent. The summary is not stored by this tool; Zoom keeps it in the school's Zoom account under the school's Zoom settings. Leave the box unticked if the meeting should not be summarised.</li>
     </ul>
     <p>We do not request access to your personal calendar, contacts, files, or any other Google data. We do not use cookies for tracking; the only browser storage used is a sign-in session (up to 12 hours), a cached staff directory and your recent invitees for attendee suggestions, and a copy of the booking board and your profile so the page opens quickly. Signing out removes all of it from the browser.</p>
 
@@ -53,10 +55,10 @@
     </ul>
 
     <h2>Where it is stored</h2>
-    <p>All data stays inside the schools' Google Workspace: Google Calendar (bookings), a Google Sheet owned by the administration (pending requests and the audit log), and Google Apps Script (the backend). Nothing is sent to third-party services. The public website only contains the user interface; it stores no personal data.</p>
+    <p>All booking data stays inside the schools' Google Workspace: Google Calendar (bookings), a Google Sheet owned by the administration (pending requests, the Zoom meeting register and the audit log), and Google Apps Script (the backend). For Zoom bookings, the meeting itself and any AI summary are held by Zoom in the school's Zoom account. No other third-party service receives your data. The public website only contains the user interface; it stores no personal data.</p>
 
     <h2>Who can see it</h2>
-    <p>Booking titles and requester names are visible to signed-in staff of the participating schools on the availability board, as they are in the shared room calendars today. Reasons for preemption requests and rejection notes are visible only to the requester, the room's approvers, and administrators.</p>
+    <p>Booking titles and requester names are visible to signed-in staff of the participating schools on the availability board, as they are in the shared room calendars today. Reasons for preemption requests and rejection notes are visible only to the requester, the room's approvers, and administrators. AI meeting summaries are e-mailed only to the booking owner and the named host.</p>
 
     <h2>Retention</h2>
     <p>Calendar events remain in the room calendars according to the schools' calendar policies. Request records and audit logs are kept for administrative purposes and may be deleted by the administration. Sign-in sessions expire after 12 hours.</p>
