@@ -215,7 +215,7 @@ RB.bookingForm = (function () {
     ], 'none', function () { refreshRec(); });
     var untilIn = U.el('input.input', { type: 'date', name: 'until', min: T.today(), max: maxDate });
     var countIn = U.el('input.input', { type: 'number', name: 'count', min: 2, max: 52, placeholder: '' });
-    var recExtra = U.el('div.grid-2', null, [field('form.recurrence.until', untilIn), field('form.recurrence.count', countIn, t('form.recurrence.count.hint'))]);
+    var recExtra = U.el('div', null, [U.el('div.grid-2', null, [field('form.recurrence.until', untilIn), field('form.recurrence.count', countIn)]), U.el('p.muted.small', null, [t('form.recurrence.count.hint')])]);
     recExtra.hidden = true;
     var recPreview = U.el('p.note.rec-preview');   // 실제로 잡힐 날짜 미리보기
     recPreview.hidden = true;
@@ -367,18 +367,17 @@ RB.bookingForm = (function () {
       }
     }, [
       edit && edit.occurrenceOnly ? U.el('p.note', null, [t('form.editOccurrence')]) : null,
-      field('form.resource', resSel), modeNote, zoomNote,
+      edit ? field('form.resource', resSel) : U.el('div.grid-2.grid-room', null, [field('form.resource', resSel), field('form.grade', gradeSel)]), modeNote, zoomNote,
       U.el('div.grid-3', null, [field('form.date', dateIn), field('form.start', startSel), field('form.end', endSel)]),
       field('form.summary', titleIn),
-      edit ? null : field('form.grade', gradeSel),
       bookForRow, bookForBox,
       field('form.guests', guests.node, t('form.guests.hint')),
       zoomHostRow, zoomHostBox, edit ? aiSummaryRow : null,
       edit ? U.el('p.note', null, [t('form.editNote')]) : U.el('details.optional', null, [
         U.el('summary', null, [t('form.optional'), optHint]),
-        field('form.note', noteIn),
         edit ? null : aiSummaryRow,
-        field('form.recurrence', recSel), recWeekly, recMonthly, recExtra, recPreview
+        field('form.recurrence', recSel), recWeekly, recMonthly, recExtra, recPreview,
+        field('form.note', noteIn)
       ]),
       errBox,
       U.el('div.actions', null, [U.el('button.btn', { type: 'button', onclick: U.closeModal }, [t('btn.cancel')]), submitBtn])

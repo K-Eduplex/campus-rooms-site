@@ -101,12 +101,15 @@ button, input, select, textarea { font-family: inherit; }
 .group-tabs .seg:not(:first-of-type):not(:last-of-type) { border-radius: 0; }
 .seg.active { background: color-mix(in srgb, var(--brand) 22%, var(--surface)); color: var(--ink); font-weight: 600; }
 .input, .select, .date-input { border: 1px solid var(--control-border); border-radius: var(--radius-sm); padding: 7px 10px; font-size: 16px; background: var(--surface); color: var(--text); width: 100%; font-family: inherit; }
+/* 한 줄 입력 칸 높이를 맞춘다 — 브라우저 기본 날짜 칸(42px)이 숫자·텍스트 칸(38px)보다 높아 나란히 놓으면 어긋났다(2026-10-27) 예약 폼 안에만(현황판 툴바 제외) */
+form.form input.input, form.form .select { min-height: 42px; box-sizing: border-box; }
 .date-input { width: auto; }
 .select { width: auto; min-width: 90px; }
 .field { display: block; margin-bottom: 10px; }
 .field-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
 .field .select { width: 100%; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid-room { grid-template-columns: 3fr 2fr; }   /* 예약 폼: 장소(넓게) + 용도 — 2026-10-27 */
 .grid-3 { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 details.optional { border: 1px dashed var(--line); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 10px; }
@@ -224,6 +227,7 @@ body.modal-open { overflow: hidden; }
   .view { padding: 10px; }
   .grid-3 { grid-template-columns: 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
+  .grid-room { grid-template-columns: 1fr; }
   .toolbar-label { width: 100%; margin-left: 0; }
   .legend-hint { margin-left: 0; width: 100%; }
 }
