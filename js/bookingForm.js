@@ -203,8 +203,10 @@ RB.bookingForm = (function () {
     var endSel = select('end', timeOptions(true, zoomInit).slice(1), initial.endMin);
     if (edit) resSel.disabled = true;
     var titleIn = U.el('input.input', { type: 'text', name: 'title', required: true, maxLength: 80, placeholder: t('form.summary.ph'), value: edit ? edit.title || '' : '' });
-    var gradeSel = select('grade', cfg().grades.map(function (g) { return { value: g.code, label: g.label || t('grade.' + g.code) }; }), cfg().grades[cfg().grades.length - 1].code);
-    var headIn = U.el('input.input', { type: 'number', name: 'headcount', min: 1, max: 999, placeholder: '' });
+    // 용도(등급)는 필수 항목: 기본값은 회의(MEETING), 설정 목록에 없으면 마지막 등급(2026-10-27)
+    var grades = cfg().grades;
+    var gradeDefault = grades.some(function (g) { return g.code === 'MEETING'; }) ? 'MEETING' : grades[grades.length - 1].code;
+    var gradeSel = select('grade', grades.map(function (g) { return { value: g.code, label: g.label || t('grade.' + g.code) }; }), gradeDefault);
     var guests = guestChips(edit ? edit.guests : null);
     var noteIn = U.el('textarea.input', { name: 'note', rows: 2, placeholder: t('form.note.ph') });
     var recSel = select('recFreq', [
@@ -309,9 +311,11 @@ RB.bookingForm = (function () {
     if (edit && edit.zoomHost) { zoomHostToggle.checked = true; zoomHostBox.hidden = false; zoomHostIn.value = edit.zoomHost; }
     // Zoom AI 요약 메일(D-32): 체크해야 요약 메일을 받는다(옵트인). Zoom 방이고 서버 스위치(zoomAiSummary)가 켜졌을 때만 보인다.
     var aiSummaryIn = U.el('input', { type: 'checkbox', name: 'aiSummary' });
+    // 새 예약은 Optional 안, 편집 모드는 본문(편집 모드엔 Optional 이 없다). 같은 요소를 한 곳에만 넣는다.
     var aiSummaryRow = U.el('div', null, [U.el('label', null, [aiSummaryIn, ' ' + t('form.aiSummary')]), U.el('p.note', null, [t('form.aiSummary.notice')])]);
     aiSummaryRow.hidden = true;
     if (edit) aiSummaryIn.checked = !!edit.aiSummary;
+    var optHint = U.el('small.muted', null, [' ' + t('form.optional.hint')]);   // Optional 안에 뭐가 있는지 한 줄 설명
     var zoomNote = U.el('p.note', null, [t('form.zoomNote')]);
     var modeNote = U.el('p.note');
     function updateModeNote() {
@@ -331,6 +335,7 @@ RB.bookingForm = (function () {
       if (!zoomOn) { zoomHostToggle.checked = false; zoomHostBox.hidden = true; zoomHostIn.value = ''; }
       aiSummaryRow.hidden = !(zoomOn && cfg().zoomAiSummary);
       if (aiSummaryRow.hidden) aiSummaryIn.checked = false;
+      optHint.textContent = ' ' + t(aiSummaryRow.hidden ? 'form.optional.hint' : 'form.optional.hintAi');
       var zoom = isZoomRes(resSel.value);
       fillSelect(startSel, timeOptions(false, zoom), Number(startSel.value));
       fillSelect(endSel, timeOptions(true, zoom).slice(1), Number(endSel.value));
@@ -365,13 +370,14 @@ RB.bookingForm = (function () {
       field('form.resource', resSel), modeNote, zoomNote,
       U.el('div.grid-3', null, [field('form.date', dateIn), field('form.start', startSel), field('form.end', endSel)]),
       field('form.summary', titleIn),
+      edit ? null : field('form.grade', gradeSel),
       bookForRow, bookForBox,
       field('form.guests', guests.node, t('form.guests.hint')),
-      zoomHostRow, zoomHostBox, aiSummaryRow,
+      zoomHostRow, zoomHostBox, edit ? aiSummaryRow : null,
       edit ? U.el('p.note', null, [t('form.editNote')]) : U.el('details.optional', null, [
-        U.el('summary', null, [t('form.optional')]),
-        U.el('div.grid-2', null, [field('form.grade', gradeSel), field('form.headcount', headIn)]),
+        U.el('summary', null, [t('form.optional'), optHint]),
         field('form.note', noteIn),
+        edit ? null : aiSummaryRow,
         field('form.recurrence', recSel), recWeekly, recMonthly, recExtra, recPreview
       ]),
       errBox,
@@ -389,7 +395,7 @@ RB.bookingForm = (function () {
         start: T.make(key, Number(startSel.value)).toISOString(),
         end: T.make(key, Number(endSel.value)).toISOString(),
         title: titleIn.value.trim(), grade: gradeSel.value,
-        headcount: headIn.value ? Number(headIn.value) : null, note: noteIn.value.trim() || null,
+        note: noteIn.value.trim() || null,
         guests: guests.values(),
         bookFor: (bookForToggle.checked && !edit) ? bookForIn.value.trim().toLowerCase() : '',
         zoomHost: (zoomHostToggle.checked && !zoomHostRow.hidden) ? zoomHostIn.value.trim().toLowerCase() : '',
