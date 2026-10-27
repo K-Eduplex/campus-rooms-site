@@ -150,8 +150,10 @@ RB.bookingForm = (function () {
     return sel;
   }
 
-  function field(labelKey, control, hint) {
-    return U.el('label.field', null, [U.el('span.field-label', null, [t(labelKey), hint ? U.el('small.muted', null, [' ' + hint]) : null]), control]);
+  /** required 면 라벨 뒤에 빨간 * 를 붙이고(화면낭독기에는 숨김), 입력칸에 aria-required 를 단다. */
+  function field(labelKey, control, hint, required) {
+    if (required && control.setAttribute) control.setAttribute('aria-required', 'true');
+    return U.el('label.field', null, [U.el('span.field-label', null, [t(labelKey), required ? U.el('span.req', { 'aria-hidden': 'true' }, [' *']) : null, hint ? U.el('small.muted', null, [' ' + hint]) : null]), control]);
   }
 
   /**
@@ -203,10 +205,11 @@ RB.bookingForm = (function () {
     var endSel = select('end', timeOptions(true, zoomInit).slice(1), initial.endMin);
     if (edit) resSel.disabled = true;
     var titleIn = U.el('input.input', { type: 'text', name: 'title', required: true, maxLength: 80, placeholder: t('form.summary.ph'), value: edit ? edit.title || '' : '' });
-    // 용도(등급)는 필수 항목: 기본값은 회의(MEETING), 설정 목록에 없으면 마지막 등급(2026-10-27)
+    // 용도(등급)는 필수: 기본값 없이 빈 칸에서 직접 고른다(2026-10-27 3차). 편집 화면엔 Purpose 칸이 없다.
     var grades = cfg().grades;
-    var gradeDefault = grades.some(function (g) { return g.code === 'MEETING'; }) ? 'MEETING' : grades[grades.length - 1].code;
-    var gradeSel = select('grade', grades.map(function (g) { return { value: g.code, label: g.label || t('grade.' + g.code) }; }), gradeDefault);
+    var gradeSel = select('grade', [{ value: '', label: t('form.grade.choose') }].concat(grades.map(function (g) { return { value: g.code, label: g.label || t('grade.' + g.code) }; })), '');
+    gradeSel.required = true;
+    gradeSel.options[0].disabled = true;
     var guests = guestChips(edit ? edit.guests : null);
     var noteIn = U.el('textarea.input', { name: 'note', rows: 2, placeholder: t('form.note.ph') });
     var recSel = select('recFreq', [
@@ -288,7 +291,7 @@ RB.bookingForm = (function () {
 
     // 대신 예약(2026-10-21): 체크해야 이메일 칸이 나온다(옵트인). 편집 모드에서는 숨긴다(예약 주인은 바꿀 수 없다).
     var bookForIn = U.el('input.input', { type: 'email', name: 'bookFor', placeholder: t('form.bookFor.ph'), autocomplete: 'off' });
-    var bookForField = field('form.bookFor', bookForIn, t('form.bookFor.hint'));
+    var bookForField = field('form.bookFor', bookForIn, t('form.bookFor.hint'), true);
     var bookForToggle = U.el('input', { type: 'checkbox', name: 'bookForToggle', onchange: function () {
       bookForBox.hidden = !bookForToggle.checked;
       if (bookForToggle.checked) bookForIn.focus(); else bookForIn.value = '';
@@ -298,7 +301,7 @@ RB.bookingForm = (function () {
     var bookForBox = U.el('div', null, [U.el('p.note', null, [t('form.bookFor.notice')]), bookForField]);
     bookForBox.hidden = true;
     var zoomHostIn = U.el('input.input', { type: 'email', name: 'zoomHost', placeholder: t('form.zoomHost.ph'), autocomplete: 'off' });
-    var zoomField = field('form.zoomHost', zoomHostIn, t('form.zoomHost.hint'));
+    var zoomField = field('form.zoomHost', zoomHostIn, t('form.zoomHost.hint'), true);
     // Zoom 호스트도 대신 예약과 같은 옵트인: 체크해야 호스트 이메일 칸이 나온다. 호스트는 참석자로 초대된다(intentFromParams_).
     var zoomHostToggle = U.el('input', { type: 'checkbox', name: 'zoomHostToggle', onchange: function () {
       zoomHostBox.hidden = !zoomHostToggle.checked;
@@ -367,9 +370,9 @@ RB.bookingForm = (function () {
       }
     }, [
       edit && edit.occurrenceOnly ? U.el('p.note', null, [t('form.editOccurrence')]) : null,
-      edit ? field('form.resource', resSel) : U.el('div.grid-2.grid-room', null, [field('form.resource', resSel), field('form.grade', gradeSel)]), modeNote, zoomNote,
-      U.el('div.grid-3', null, [field('form.date', dateIn), field('form.start', startSel), field('form.end', endSel)]),
-      field('form.summary', titleIn),
+      edit ? field('form.resource', resSel, null, true) : U.el('div.grid-2.grid-room', null, [field('form.resource', resSel, null, true), field('form.grade', gradeSel, null, true)]), modeNote, zoomNote,
+      U.el('div.grid-3', null, [field('form.date', dateIn, null, true), field('form.start', startSel, null, true), field('form.end', endSel, null, true)]),
+      field('form.summary', titleIn, null, true),
       bookForRow, bookForBox,
       field('form.guests', guests.node, t('form.guests.hint')),
       zoomHostRow, zoomHostBox, edit ? aiSummaryRow : null,
@@ -413,6 +416,7 @@ RB.bookingForm = (function () {
     }
     function validate(p) {
       if (!p.calendarId || !dateIn.value || !p.title) return t('form.err.required');
+      if (!edit && !p.grade) return t('form.err.grade');
       if (Number(endSel.value) <= Number(startSel.value)) return t('form.err.order');
       // 편집 중 시작 시각을 그대로 두면(이미 진행 중인 예약의 제목·참석자만 고칠 때) 과거 검사를 건너뛴다
       var startUnchanged = edit && T.dateKey(new Date(p.start)) === initial.date && Number(startSel.value) === initial.startMin;

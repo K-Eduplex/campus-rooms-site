@@ -107,6 +107,7 @@ form.form input.input, form.form .select { min-height: 42px; box-sizing: border-
 .select { width: auto; min-width: 90px; }
 .field { display: block; margin-bottom: 10px; }
 .field-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+.field-label .req { color: var(--danger); }
 .field .select { width: 100%; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grid-room { grid-template-columns: 3fr 2fr; }   /* 예약 폼: 장소(넓게) + 용도 — 2026-10-27 */
