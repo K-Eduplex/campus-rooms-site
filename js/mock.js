@@ -168,6 +168,67 @@ RB.mock = (function () {
     });
   }
 
+  // ---- Zoom 사용량 mock 조각 -----------------------------------------------
+  var ZOOM_MOCK_SPAN_MONTHS = 12;          // 오늘 달부터 거슬러 올라가 만드는 개월 수
+  var ZOOM_MOCK_UNAVAILABLE_MONTHS = 6;    // 그중 오래된 쪽 N개월은 Zoom 에서 못 읽은 달
+  var ZOOM_MOCK_DATES2_MAX = 25;           // 2개 이상 동시 사용일 개수
+  var ZOOM_MOCK_DATES2_PER_MONTH = 5;      // 달마다 채우는 날짜 수
+  var ZOOM_MOCK_DATES2_STEP = 5;           // 날짜 간격(일)
+  var ZOOM_MOCK_DATES2_FIRST_DAY = 2;      // 첫 날짜(일)
+
+  /** 한 자리 수 앞에 0 을 붙여 두 자리로 맞춘다. */
+  function zoomMockPad(n) { return n < 10 ? '0' + n : n; }
+
+  /** 오늘 달 기준으로 읽은 달(months)과 못 읽은 달(unavailable) 목록을 만든다(오래된 달부터). */
+  function zoomMockMonths(now) {
+    var idx = now.getFullYear() * 12 + now.getMonth();
+    var months = [], unavailable = [];
+    for (var j = ZOOM_MOCK_SPAN_MONTHS - 1; j >= 0; j--) {
+      var cur = idx - j;
+      var monthStr = Math.floor(cur / 12) + '-' + zoomMockPad((cur % 12) + 1);
+      (j >= ZOOM_MOCK_UNAVAILABLE_MONTHS ? unavailable : months).push(monthStr);
+    }
+    return { months: months, unavailable: unavailable };
+  }
+
+  /** 계정별·월별 합성 사용량 { 이메일: { 'YYYY-MM': {meetings,hours,days,avgParticipants} } }. */
+  function zoomMockPerAccountMonth(accounts, months) {
+    var perAccountMonth = {};
+    accounts.forEach(function (email, a) {
+      perAccountMonth[email] = {};
+      months.forEach(function (month, i) {
+        var meetings = (a * 3 + i * 2 + (email.length % 4)) % 15;
+        var hours = Math.round(meetings * 1.4 * 10) / 10;
+        var days = Math.max(0, Math.min(meetings, 5 + i));
+        var avgParticipants = Math.round((2 + ((a + i) % 17)) * 10) / 10;
+        perAccountMonth[email][month] = { meetings: meetings, hours: hours, days: days, avgParticipants: avgParticipants };
+      });
+    });
+    return perAccountMonth;
+  }
+
+  /** 동시 사용 요약 합성값(최대 동시 수, 단계별 분·일자). 일자는 가장 최근 달 안에서 고른다. */
+  function zoomMockConcurrency(months) {
+    var curMonth = months[months.length - 1];
+    var d1 = curMonth + '-03';
+    var d2 = curMonth + '-08';
+    var d3 = curMonth + '-12';
+    var d4 = curMonth + '-17';
+    var d5 = curMonth + '-22';
+    // 2개 이상 동시 사용일: 월 순서대로 2·7·12·17·22일을 채워 25일을 만든다(중복 없음, 정렬됨)
+    var dates2 = [];
+    for (var mi = 0; mi < months.length && dates2.length < ZOOM_MOCK_DATES2_MAX; mi++) {
+      for (var di = 0; di < ZOOM_MOCK_DATES2_PER_MONTH && dates2.length < ZOOM_MOCK_DATES2_MAX; di++) {
+        dates2.push(months[mi] + '-' + zoomMockPad(ZOOM_MOCK_DATES2_FIRST_DAY + di * ZOOM_MOCK_DATES2_STEP));
+      }
+    }
+    return {
+      max: 4,
+      minutesAtLeast: { 1: 9000, 2: 1536, 3: 390, 4: 60 },
+      daysAtLeast: { 2: dates2, 3: [d1, d2, d3, d4, d5], 4: [d3] }
+    };
+  }
+
   // ---- API 핸들러 ----------------------------------------------------------
   var handlers = {
     init: function (p) {
@@ -436,59 +497,15 @@ RB.mock = (function () {
     zoomUsage: function (p) {
       if (me.email !== 'admin@k-eduplex.net') return fail('FORBIDDEN', 'super admin only');
       var now = new Date();
-      var y = now.getFullYear();
-      var m = now.getMonth() + 1;
-      var idx = y * 12 + (m - 1);
-      var monthsList = [];
-      var unavailable = [];
-      for (var j = 11; j >= 0; j--) {
-        var cur = idx - j;
-        var yy = Math.floor(cur / 12);
-        var mm = (cur % 12) + 1;
-        var monthStr = yy + '-' + (mm < 10 ? '0' + mm : mm);
-        if (j >= 6) {
-          unavailable.push(monthStr);
-        } else {
-          monthsList.push(monthStr);
-        }
-      }
+      var span = zoomMockMonths(now);
       var accounts = ['academic2@k-eduplex.net', 'blc@k-eduplex.net', 'cga@k-eduplex.net', 'jiu.academic3@k-eduplex.net', 'official@jiu.ac'].sort();
-      var perAccountMonth = {};
-      accounts.forEach(function (email, a) {
-        perAccountMonth[email] = {};
-        monthsList.forEach(function (month, i) {
-          var meetings = (a * 3 + i * 2 + (email.length % 4)) % 15;
-          var hours = Math.round(meetings * 1.4 * 10) / 10;
-          var days = Math.max(0, Math.min(meetings, 5 + i));
-          var avgParticipants = Math.round((2 + ((a + i) % 17)) * 10) / 10;
-          perAccountMonth[email][month] = { meetings: meetings, hours: hours, days: days, avgParticipants: avgParticipants };
-        });
-      });
-      var curMonth = monthsList[monthsList.length - 1];
-      var d1 = curMonth + '-03';
-      var d2 = curMonth + '-08';
-      var d3 = curMonth + '-12';
-      var d4 = curMonth + '-17';
-      var d5 = curMonth + '-22';
-      // 2개 이상 동시 사용일: 월 순서대로 2·7·12·17·22일을 채워 25일을 만든다(중복 없음, 정렬됨)
-      var dates2 = [];
-      for (var mi = 0; mi < monthsList.length && dates2.length < 25; mi++) {
-        for (var di = 0; di < 5 && dates2.length < 25; di++) {
-          var dd = 2 + di * 5;
-          dates2.push(monthsList[mi] + '-' + (dd < 10 ? '0' + dd : dd));
-        }
-      }
       var result = {
         generatedAt: now.toISOString(),
         accounts: accounts,
-        months: monthsList,
-        perAccountMonth: perAccountMonth,
-        concurrency: {
-          max: 4,
-          minutesAtLeast: { 1: 9000, 2: 1536, 3: 390, 4: 60 },
-          daysAtLeast: { 2: dates2, 3: [d1, d2, d3, d4, d5], 4: [d3] }
-        },
-        unavailableMonths: unavailable,
+        months: span.months,
+        perAccountMonth: zoomMockPerAccountMonth(accounts, span.months),
+        concurrency: zoomMockConcurrency(span.months),
+        unavailableMonths: span.unavailable,
         errors: [],
         fromCache: !(p && p.refresh) && zoomUsageLoaded
       };

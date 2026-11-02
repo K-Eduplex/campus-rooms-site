@@ -13,6 +13,30 @@ window.RB = window.RB || {};
 RB.bookingForm = (function () {
   var U = RB.ui, T = RB.time, t = function (k, v) { return RB.i18n.t(k, v); };
   var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  var REC_DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];   // 반복 요일 코드, 월요일부터
+
+  /** 참석자 칩 한 개. 이름이 있으면 이름+메일, 없으면 메일만 보여 주고, × 버튼은 onRemove 를 부른다. */
+  function chipElement(g, onRemove) {
+    return U.el('span.chip' + (EMAIL_RE.test(g.email) ? '' : '.invalid'), { title: g.email }, [
+      g.name && g.name !== g.email ? U.el('span.chip-name', null, [g.name]) : null,
+      U.el('span.chip-mail', null, [g.name && g.name !== g.email ? g.email : '']),
+      !g.name || g.name === g.email ? U.el('span.chip-name', null, [g.email]) : null,
+      U.el('button', { type: 'button', 'aria-label': 'remove', onclick: onRemove }, ['×'])
+    ]);
+  }
+  /** 자동완성 후보 한 줄. 마우스를 누르면(입력창 blur 보다 먼저) onPick(email, name) 을 부른다. */
+  function suggestionItem(r, onPick) {
+    return U.el('div.suggest-item', { onmousedown: function (e) { e.preventDefault(); onPick(r.email, r.name); } }, [
+      U.el('span.s-name', null, [r.name]), U.el('span.s-mail', null, [r.email])
+    ]);
+  }
+  /** 디렉터리에서 q 를 찾아 onResults(목록) 를 부른다. 이미 chips 에 있는 주소는 뺀다. 실패하면 onFail(). */
+  function searchPeople(q, input, chips, onResults, onFail) {
+    RB.people.search(q, chips.map(function (c) { return c.email; })).then(function (res) {
+      if (input.value.trim() !== q) return; // 이미 다른 글자를 치고 있다
+      onResults(res || []);
+    }).catch(function () { onFail(); });
+  }
 
   /**
    * 참석자 칩 입력. 두 글자 이상 치면 디렉터리(people API)에서 후보를 보여주고,
@@ -29,13 +53,7 @@ RB.bookingForm = (function () {
     function render() {
       box.querySelectorAll('.chip').forEach(function (c) { c.remove(); });
       chips.forEach(function (g, i) {
-        var chip = U.el('span.chip' + (EMAIL_RE.test(g.email) ? '' : '.invalid'), { title: g.email }, [
-          g.name && g.name !== g.email ? U.el('span.chip-name', null, [g.name]) : null,
-          U.el('span.chip-mail', null, [g.name && g.name !== g.email ? g.email : '']),
-          !g.name || g.name === g.email ? U.el('span.chip-name', null, [g.email]) : null,
-          U.el('button', { type: 'button', 'aria-label': 'remove', onclick: function () { chips.splice(i, 1); render(); input.focus(); } }, ['×'])
-        ]);
-        box.insertBefore(chip, input);
+        box.insertBefore(chipElement(g, function () { chips.splice(i, 1); render(); input.focus(); }), input);
       });
     }
     function add(email, name) {
@@ -49,19 +67,10 @@ RB.bookingForm = (function () {
     function showSuggestions(results) {
       U.clear(list); items = results; active = -1;
       if (!results.length) { hide(); return; }
-      results.forEach(function (r, i) {
-        list.appendChild(U.el('div.suggest-item', { onmousedown: function (e) { e.preventDefault(); add(r.email, r.name); } }, [
-          U.el('span.s-name', null, [r.name]), U.el('span.s-mail', null, [r.email])
-        ]));
-      });
+      results.forEach(function (r) { list.appendChild(suggestionItem(r, add)); });
       list.hidden = false;
     }
-    function search(q) {
-      RB.people.search(q, chips.map(function (c) { return c.email; })).then(function (res) {
-        if (input.value.trim() !== q) return; // 이미 다른 글자를 치고 있다
-        showSuggestions(res || []);
-      }).catch(function () { hide(); });
-    }
+    function search(q) { searchPeople(q, input, chips, showSuggestions, hide); }
 
     input.addEventListener('input', function () {
       var q = input.value.trim();
@@ -162,15 +171,32 @@ RB.bookingForm = (function () {
    */
   /**
    * 예약 폼. preset.edit 가 있으면 편집 모드(D-25): 방 고정, 제목·참석자·시간만 고치고 `update` 를 부른다.
+   * 폼의 입력칸은 줄(섹션)별 builder 가 만들어 상태 객체 s 에 담고, 읽기·검사·제출은 s 를 받아 쓴다.
    * @param {Object} preset {calendarId?, date?, startMin?, endMin?, edit?:{eventId, title, guests:[email], zoomHost?, aiSummary?, grade?, organizerEmail?, organizerName?, isMine?, occurrenceOnly?, onDone:function}}
    */
   function open(preset) {
     preset = preset || {};
+    var s = formState(preset);
+    if (!s) return;
+    var children = formChildren(s);   // 입력칸을 만들어 s 에 담는다(읽기·검사가 쓸 것)
+    var io = formIO(s);
+    s.recObj = io.recObj;             // 반복 미리보기가 쓴다
+    refreshRec(s);
+    onResourceChange(s);
+    var form = U.el('form.form', { onsubmit: function (e) { submitForm(e, s, io); } }, children);
+    U.modal(form, { title: t(s.edit ? 'form.editTitle' : 'form.title') });
+    setTimeout(function () { s.titleIn.focus(); }, 50);
+  }
+
+  /**
+   * 폼 상태 객체: 편집 정보, 고를 수 있는 장소, 초기값(슬롯에 맞춤), 최대 날짜. 열 수 있는 장소가 없으면 null.
+   * builder 들이 만든 입력칸이 여기에 계속 담긴다.
+   */
+  function formState(preset) {
     var edit = preset.edit || null;
     var list = resources();
     if (edit) list = list.filter(function (r) { return r.calendarId === preset.calendarId; });
-    if (!list.length) return;
-    var maxDate = T.addDays(T.today(), cfg().maxAdvanceDays || 180);
+    if (!list.length) return null;
     var initial = {
       calendarId: preset.calendarId || list[0].calendarId,
       date: preset.date || T.today(),
@@ -182,114 +208,70 @@ RB.bookingForm = (function () {
     initial.startMin = Math.floor(initial.startMin / step) * step;
     initial.endMin = Math.ceil(initial.endMin / step) * step;
     if (initial.endMin <= initial.startMin) initial.endMin = initial.startMin + step;
+    return { edit: edit, list: list, initial: initial, maxDate: T.addDays(T.today(), cfg().maxAdvanceDays || 180), recPicked: {} };
+  }
 
-    var resSel = U.el('select.select', { name: 'calendarId', onchange: onResourceChange });
-    (function () {
-      var groups = ['MAIN', 'OTHER', 'ZOOM'].map(function (g) { return [g, list.filter(function (r) { return groupOf(r) === g; })]; });
-      groups.forEach(function (g) {
-        if (!g[1].length) return;
-        var og = U.el('optgroup', { label: t('board.group.' + g[0]) });
-        g[1].forEach(function (r) {
-          og.appendChild(U.el('option', { value: r.calendarId, selected: r.calendarId === initial.calendarId },
-            [r.name + (r.aliases && r.aliases.length ? ' · ' + r.aliases[0] : '') + (r.active === false ? ' (' + t('board.inactive') + ')' : '')]));
-        });
-        resSel.appendChild(og);
+  /** 폼 본문: 섹션을 화면 순서대로 만들어 이어 붙인다(입력칸은 s 에 담긴다). */
+  function formChildren(s) {
+    var edit = s.edit;
+    return [edit && edit.occurrenceOnly ? U.el('p.note', null, [t('form.editOccurrence')]) : null].concat(
+      roomSection(s), scheduleSection(s), bookForSection(s), [guestsRow(s)], zoomSection(s), [optionalSection(s)], footerSection(s)
+    );
+  }
+
+  /** resSel 에 장소를 그룹(MAIN/OTHER/ZOOM)별 optgroup 으로 채운다. */
+  function fillResourceGroups(resSel, list, selectedId) {
+    ['MAIN', 'OTHER', 'ZOOM'].map(function (g) { return [g, list.filter(function (r) { return groupOf(r) === g; })]; }).forEach(function (g) {
+      if (!g[1].length) return;
+      var og = U.el('optgroup', { label: t('board.group.' + g[0]) });
+      g[1].forEach(function (r) {
+        og.appendChild(U.el('option', { value: r.calendarId, selected: r.calendarId === selectedId },
+          [r.name + (r.aliases && r.aliases.length ? ' · ' + r.aliases[0] : '') + (r.active === false ? ' (' + t('board.inactive') + ')' : '')]));
       });
-    })();
-    var dateIn = U.el('input.input', { type: 'date', name: 'date', value: initial.date, min: T.today(), max: maxDate, required: true });
-    var zoomInit = isZoomRes(initial.calendarId);
-    var startSel = select('start', timeOptions(false, zoomInit), initial.startMin, function () {
-      // 시작을 바꾸면 종료를 시작+1h 로 따라가게 해 "종료가 시작보다 앞" 실수를 줄인다
-      var s = Number(startSel.value); if (Number(endSel.value) <= s) endSel.value = String(Math.min(s + 60, timeOptions(true, isZoomRes(resSel.value)).slice(-1)[0].value));
+      resSel.appendChild(og);
     });
-    var endSel = select('end', timeOptions(true, zoomInit).slice(1), initial.endMin);
+  }
+
+  /** 장소(Room)·용도(Purpose) 줄과 그 아래 안내 두 줄. 새 예약은 두 칸 나란히, 편집은 장소만. 반환: [줄, modeNote, zoomNote] */
+  function roomSection(s) {
+    var edit = s.edit;
+    var resSel = U.el('select.select', { name: 'calendarId', onchange: function () { onResourceChange(s); } });
+    fillResourceGroups(resSel, s.list, s.initial.calendarId);
     if (edit) resSel.disabled = true;
-    var titleIn = U.el('input.input', { type: 'text', name: 'title', required: true, maxLength: 80, placeholder: t('form.summary.ph'), value: edit ? edit.title || '' : '' });
     // 용도(등급)는 필수: 기본값 없이 빈 칸에서 직접 고른다(2026-10-27 3차). 편집 화면엔 Purpose 칸이 없다.
     var grades = cfg().grades;
     var gradeSel = select('grade', [{ value: '', label: t('form.grade.choose') }].concat(grades.map(function (g) { return { value: g.code, label: g.label || t('grade.' + g.code) }; })), '');
     gradeSel.required = true;
     gradeSel.options[0].disabled = true;
-    var guests = guestChips(edit ? edit.guests : null);
-    var noteIn = U.el('textarea.input', { name: 'note', rows: 2, placeholder: t('form.note.ph') });
-    var recSel = select('recFreq', [
-      { value: 'none', label: t('rec.none') }, { value: 'daily', label: t('rec.daily') },
-      { value: 'weekly', label: t('rec.weekly') }, { value: 'monthly', label: t('rec.monthly') }
-    ], 'none', function () { refreshRec(); });
-    var untilIn = U.el('input.input', { type: 'date', name: 'until', min: T.today(), max: maxDate });
-    var countIn = U.el('input.input', { type: 'number', name: 'count', min: 2, max: 52, placeholder: '' });
-    var recExtra = U.el('div', null, [U.el('div.grid-2', null, [field('form.recurrence.until', untilIn), field('form.recurrence.count', countIn)]), U.el('p.muted.small', null, [t('form.recurrence.count.hint')])]);
-    recExtra.hidden = true;
-    var recPreview = U.el('p.note.rec-preview');   // 실제로 잡힐 날짜 미리보기
-    recPreview.hidden = true;
-    // 매주: 간격(1–4주) + 요일 체크. 시작 날짜의 요일은 항상 체크·잠금(날짜가 바뀌면 따라 움직인다)
-    var REC_DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];   // 월요일부터
-    var recPicked = {};   // 사용자가 직접 고른 요일
-    var recIntervalSel = U.el('select.select', { name: 'recInterval' });
-    fillSelect(recIntervalSel, [1, 2, 3, 4].map(function (n) {
-      return { value: n, label: n === 1 ? t('rec.weeks.1') : t('rec.weeks.n', { n: n }) };
-    }), 1);
-    var recDayBoxes = REC_DAYS.map(function (code) {
-      var cb = U.el('input', { type: 'checkbox', name: 'recDay', value: code, onchange: function () { recPicked[code] = cb.checked; } });
-      return U.el('label', null, [cb, ' ' + t('rec.day.' + code) + '  ']);
-    });
-    var recWeekly = U.el('div', null, [
-      field('form.recurrence.every', recIntervalSel),
-      U.el('div.field', null, [U.el('span.field-label', null, [t('form.recurrence.days')]), U.el('div', null, recDayBoxes)])
-    ]);
-    recWeekly.hidden = true;
-    // 매월: 같은 날짜 / n번째 요일 / 마지막 요일. 선택한 날짜에서 선택지를 만든다
-    var recMonthlySel = U.el('select.select', { name: 'recMonthly' });
-    var recMonthly = field('form.recurrence.monthly', recMonthlySel);
-    recMonthly.hidden = true;
-    /** 선택한 날짜 → {day, code(MO..SU), daysInMonth}. 날짜가 비었으면 null */
-    function recStart() {
-      var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateIn.value || '');
-      if (!m) return null;
-      var y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
-      var dow = new Date(y, mo - 1, d).getDay();   // 0=일
-      return { day: d, code: REC_DAYS[(dow + 6) % 7], daysInMonth: new Date(y, mo, 0).getDate() };
-    }
-    /** 반복 칸 아래 미리보기: 서버와 같은 규칙(RB.recurrence)으로 실제 날짜를 보여준다. */
-    function updatePreview() {
-      var rec = recObj(), st = recStart();
-      recPreview.hidden = !rec || !st;
-      if (recPreview.hidden) return;
-      if (!rec.count && !rec.until) { recPreview.textContent = t('rec.preview.need'); return; }
-      var lang = RB.i18n.get();
-      var shown = RB.recurrence.expand(dateIn.value, rec).map(function (k) { return T.fmtDate(k, lang); });
-      recPreview.textContent = shown.length <= 6
-        ? t('rec.preview', { n: shown.length, list: shown.join(', ') })
-        : t('rec.preview.many', { n: shown.length, first: shown[0], last: shown[shown.length - 1] });
-    }
-    function refreshRec() {
-      var freq = recSel.value, st = recStart();
-      recExtra.hidden = freq === 'none';
-      recWeekly.hidden = freq !== 'weekly';
-      recMonthly.hidden = freq !== 'monthly';
-      recDayBoxes.forEach(function (lab) {
-        var cb = lab.firstChild, isStart = !!st && cb.value === st.code;
-        cb.disabled = isStart;
-        cb.checked = isStart || !!recPicked[cb.value];
-        cb.title = isStart ? t('rec.day.start') : '';
-      });
-      if (st) {
-        var prev = recMonthlySel.value, n = Math.ceil(st.day / 7), opts = [{ value: 'date', label: t('rec.monthly.date', { day: st.day }) }];
-        if (n <= 4) opts.push({ value: 'nth', label: t('rec.monthly.nth', { nth: t('rec.nth.' + n), weekday: t('rec.weekday.' + st.code) }) });
-        if (st.day + 7 > st.daysInMonth) opts.push({ value: 'last', label: t('rec.monthly.last', { weekday: t('rec.weekday.' + st.code) }) });
-        fillSelect(recMonthlySel, opts, opts.some(function (o) { return o.value === prev; }) ? prev : 'date');
-      }
-      updatePreview();
-    }
-    dateIn.addEventListener('change', refreshRec);
-    dateIn.addEventListener('input', refreshRec);
-    [recIntervalSel, recMonthlySel, untilIn, countIn].concat(recDayBoxes.map(function (lab) { return lab.firstChild; })).forEach(function (n) {
-      n.addEventListener('change', updatePreview);
-      n.addEventListener('input', updatePreview);
-    });
-    refreshRec();
+    s.resSel = resSel; s.gradeSel = gradeSel;
+    s.zoomNote = U.el('p.note', null, [t('form.zoomNote')]);
+    s.modeNote = U.el('p.note');
+    return [
+      edit ? field('form.resource', resSel, null, true) : U.el('div.grid-2.grid-room', null, [field('form.resource', resSel, null, true), field('form.grade', gradeSel, null, true)]),
+      s.modeNote, s.zoomNote
+    ];
+  }
 
-    // 대신 예약(2026-10-21): 체크해야 이메일 칸이 나온다(옵트인). 편집 모드에서는 숨긴다(예약 주인은 바꿀 수 없다).
+  /** 날짜·시작·종료 줄과 제목 줄. 반환: [날짜·시간 줄, 제목 줄] */
+  function scheduleSection(s) {
+    var initial = s.initial;
+    var dateIn = U.el('input.input', { type: 'date', name: 'date', value: initial.date, min: T.today(), max: s.maxDate, required: true });
+    var zoomInit = isZoomRes(initial.calendarId);
+    var startSel = select('start', timeOptions(false, zoomInit), initial.startMin, function () {
+      // 시작을 바꾸면 종료를 시작+1h 로 따라가게 해 "종료가 시작보다 앞" 실수를 줄인다
+      var startMin = Number(startSel.value); if (Number(endSel.value) <= startMin) endSel.value = String(Math.min(startMin + 60, timeOptions(true, isZoomRes(s.resSel.value)).slice(-1)[0].value));
+    });
+    var endSel = select('end', timeOptions(true, zoomInit).slice(1), initial.endMin);
+    var titleIn = U.el('input.input', { type: 'text', name: 'title', required: true, maxLength: 80, placeholder: t('form.summary.ph'), value: s.edit ? s.edit.title || '' : '' });
+    s.dateIn = dateIn; s.startSel = startSel; s.endSel = endSel; s.titleIn = titleIn;
+    return [
+      U.el('div.grid-3', null, [field('form.date', dateIn, null, true), field('form.start', startSel, null, true), field('form.end', endSel, null, true)]),
+      field('form.summary', titleIn, null, true)
+    ];
+  }
+
+  /** 대신 예약(2026-10-21): 체크해야 이메일 칸이 나온다(옵트인). 편집 모드에서는 숨긴다(예약 주인은 바꿀 수 없다). 반환: [체크 줄, 이메일 상자] */
+  function bookForSection(s) {
     var bookForIn = U.el('input.input', { type: 'email', name: 'bookFor', placeholder: t('form.bookFor.ph'), autocomplete: 'off' });
     var bookForField = field('form.bookFor', bookForIn, t('form.bookFor.hint'), true);
     var bookForToggle = U.el('input', { type: 'checkbox', name: 'bookForToggle', onchange: function () {
@@ -297,9 +279,23 @@ RB.bookingForm = (function () {
       if (bookForToggle.checked) bookForIn.focus(); else bookForIn.value = '';
     } });
     var bookForRow = U.el('label', null, [bookForToggle, ' ' + t('form.bookFor.toggle')]);
-    bookForRow.hidden = !!edit;
+    bookForRow.hidden = !!s.edit;
     var bookForBox = U.el('div', null, [U.el('p.note', null, [t('form.bookFor.notice')]), bookForField]);
     bookForBox.hidden = true;
+    s.bookForIn = bookForIn; s.bookForToggle = bookForToggle;
+    return [bookForRow, bookForBox];
+  }
+
+  /** 참석자 줄 */
+  function guestsRow(s) {
+    var guests = guestChips(s.edit ? s.edit.guests : null);
+    s.guests = guests;
+    return field('form.guests', guests.node, t('form.guests.hint'));
+  }
+
+  /** Zoom 호스트 옵트인 줄·상자와 AI 요약 체크(편집 모드는 본문, 새 예약은 Optional 안). 반환: [호스트 체크 줄, 호스트 상자, 편집 모드의 AI 요약 줄] */
+  function zoomSection(s) {
+    var edit = s.edit;
     var zoomHostIn = U.el('input.input', { type: 'email', name: 'zoomHost', placeholder: t('form.zoomHost.ph'), autocomplete: 'off' });
     var zoomField = field('form.zoomHost', zoomHostIn, t('form.zoomHost.hint'), true);
     // Zoom 호스트도 대신 예약과 같은 옵트인: 체크해야 호스트 이메일 칸이 나온다. 호스트는 참석자로 초대된다(intentFromParams_).
@@ -318,123 +314,229 @@ RB.bookingForm = (function () {
     var aiSummaryRow = U.el('div', null, [U.el('label', null, [aiSummaryIn, ' ' + t('form.aiSummary')]), U.el('p.note', null, [t('form.aiSummary.notice')])]);
     aiSummaryRow.hidden = true;
     if (edit) aiSummaryIn.checked = !!edit.aiSummary;
+    s.zoomHostIn = zoomHostIn; s.zoomHostToggle = zoomHostToggle; s.zoomHostRow = zoomHostRow; s.zoomHostBox = zoomHostBox;
+    s.aiSummaryIn = aiSummaryIn; s.aiSummaryRow = aiSummaryRow;
+    return [zoomHostRow, zoomHostBox, edit ? aiSummaryRow : null];
+  }
+
+  /** Optional 접이식(새 예약): AI 요약 → 반복(Repeat) → 메모(Note) 순서. 편집 모드엔 Optional 대신 안내 한 줄. */
+  function optionalSection(s) {
+    var edit = s.edit, aiSummaryRow = s.aiSummaryRow;
+    var noteIn = U.el('textarea.input', { name: 'note', rows: 2, placeholder: t('form.note.ph') });
+    recurrenceControls(s);
+    var recSel = s.recSel, recWeekly = s.recWeekly, recMonthly = s.recMonthly, recExtra = s.recExtra, recPreview = s.recPreview;
     var optHint = U.el('small.muted', null, [' ' + t('form.optional.hint')]);   // Optional 안에 뭐가 있는지 한 줄 설명
-    var zoomNote = U.el('p.note', null, [t('form.zoomNote')]);
-    var modeNote = U.el('p.note');
-    function updateModeNote() {
-      var r = list.filter(function (x) { return x.calendarId === resSel.value; })[0];
-      // D-26: 그 방의 담당자·슈퍼 관리자 본인은 승인 없이 바로 확정되므로 안내를 다르게
-      var me = RB.app.state.user || {};
-      var selfApprover = r && (me.isSuperAdmin || (me.approverOf || []).indexOf(r.calendarId) !== -1);
-      modeNote.textContent = r && r.mode === 'APPROVAL' ? t(selfApprover ? 'form.approvalNoteSelf' : 'form.approvalNote') : '';
-      modeNote.hidden = !modeNote.textContent;
-    }
-    /** 장소가 바뀌면 모드 안내, Zoom 전용 입력 표시, 시간 선택지 범위(Zoom 24h / 일반)를 갱신한다. 편집 모드에서도 Zoom 방이면 호스트 입력을 보인다(예약 전체 날짜에 적용). */
-    function onResourceChange() {
-      updateModeNote();
-      var zoomOn = isZoomRes(resSel.value);
-      zoomNote.hidden = !zoomOn || !!edit;   // 새 예약 안내는 편집 모드에서 숨긴다
-      zoomHostRow.hidden = !zoomOn;
-      if (!zoomOn) { zoomHostToggle.checked = false; zoomHostBox.hidden = true; zoomHostIn.value = ''; }
-      aiSummaryRow.hidden = !(zoomOn && cfg().zoomAiSummary);
-      if (aiSummaryRow.hidden) aiSummaryIn.checked = false;
-      optHint.textContent = ' ' + t(aiSummaryRow.hidden ? 'form.optional.hint' : 'form.optional.hintAi');
-      var zoom = isZoomRes(resSel.value);
-      fillSelect(startSel, timeOptions(false, zoom), Number(startSel.value));
-      fillSelect(endSel, timeOptions(true, zoom).slice(1), Number(endSel.value));
-    }
-    onResourceChange();
-
-    var errBox = U.el('p.error'); errBox.hidden = true;
-    var submitBtn = U.el('button.btn.btn-primary', { type: 'submit' }, [t(edit ? 'btn.save' : 'btn.submit')]);
-
-    var form = U.el('form.form', {
-      onsubmit: function (e) {
-        e.preventDefault();
-        var params = read();
-        var problem = validate(params);
-        if (problem) { errBox.textContent = problem; errBox.hidden = false; return; }
-        errBox.hidden = true; var done = U.busy(submitBtn);
-        RB.people.remember(params.guests);
-        if (edit) {
-          RB.api.call('update', { eventId: edit.eventId, title: params.title, start: params.start, end: params.end, guests: params.guests, zoomHost: isZoomRes(resSel.value) ? params.zoomHost : undefined,
-            aiSummary: (isZoomRes(resSel.value) && cfg().zoomAiSummary && aiSummaryIn.checked !== !!edit.aiSummary) ? aiSummaryIn.checked : undefined })   // Zoom 호스트는 항상 보낸다('' = 지우기). aiSummary 는 체크가 처음 값에서 바뀐 때만
-            .then(function (result) { handleUpdate(result, params, edit, errBox); })
-            .catch(function (err) { errBox.textContent = t('result.error', { message: err.message || err.code }); errBox.hidden = false; })
-            .then(done);
-          return;
-        }
-        RB.api.call('book', params).then(function (result) { handleResult(result, params); })
-          .catch(function (err) { U.toast(t('result.error', { message: err.message || err.code }), 'error'); })
-          .then(done);
-      }
-    }, [
-      edit && edit.occurrenceOnly ? U.el('p.note', null, [t('form.editOccurrence')]) : null,
-      edit ? field('form.resource', resSel, null, true) : U.el('div.grid-2.grid-room', null, [field('form.resource', resSel, null, true), field('form.grade', gradeSel, null, true)]), modeNote, zoomNote,
-      U.el('div.grid-3', null, [field('form.date', dateIn, null, true), field('form.start', startSel, null, true), field('form.end', endSel, null, true)]),
-      field('form.summary', titleIn, null, true),
-      bookForRow, bookForBox,
-      field('form.guests', guests.node, t('form.guests.hint')),
-      zoomHostRow, zoomHostBox, edit ? aiSummaryRow : null,
-      edit ? U.el('p.note', null, [t('form.editNote')]) : U.el('details.optional', null, [
-        U.el('summary', null, [t('form.optional'), optHint]),
-        edit ? null : aiSummaryRow,
-        field('form.recurrence', recSel), recWeekly, recMonthly, recExtra, recPreview,
-        field('form.note', noteIn)
-      ]),
-      errBox,
-      U.el('div.actions', null, [U.el('button.btn', { type: 'button', onclick: U.closeModal }, [t('btn.cancel')]), submitBtn])
+    s.noteIn = noteIn; s.optHint = optHint;
+    return edit ? U.el('p.note', null, [t('form.editNote')]) : U.el('details.optional', null, [
+      U.el('summary', null, [t('form.optional'), optHint]),
+      edit ? null : aiSummaryRow,
+      field('form.recurrence', recSel), recWeekly, recMonthly, recExtra, recPreview,
+      field('form.note', noteIn)
     ]);
+  }
 
+  /** 오류 상자와 취소·제출 버튼 줄. 반환: [errBox, 버튼 줄] */
+  function footerSection(s) {
+    var errBox = U.el('p.error'); errBox.hidden = true;
+    var submitBtn = U.el('button.btn.btn-primary', { type: 'submit' }, [t(s.edit ? 'btn.save' : 'btn.submit')]);
+    s.errBox = errBox; s.submitBtn = submitBtn;
+    return [errBox, U.el('div.actions', null, [U.el('button.btn', { type: 'button', onclick: U.closeModal }, [t('btn.cancel')]), submitBtn])];
+  }
+
+  /** 반복 입력칸 전부(공통·매주·매월)를 만들어 s 에 담고 날짜·반복 입력이 바뀔 때 미리보기가 갱신되게 잇는다. */
+  function recurrenceControls(s) {
+    recurrenceBasics(s);
+    recurrenceWeekly(s);
+    recurrenceMonthly(s);
+    var onRefresh = function () { refreshRec(s); };
+    s.dateIn.addEventListener('change', onRefresh);
+    s.dateIn.addEventListener('input', onRefresh);
+    var onPreview = function () { updatePreview(s); };
+    [s.recIntervalSel, s.recMonthlySel, s.untilIn, s.countIn].concat(s.recDayBoxes.map(function (lab) { return lab.firstChild; })).forEach(function (n) {
+      n.addEventListener('change', onPreview);
+      n.addEventListener('input', onPreview);
+    });
+  }
+
+  /** 반복 칸 공통: 반복 선택, 종료일·횟수, 실제로 잡힐 날짜 미리보기 줄 */
+  function recurrenceBasics(s) {
+    s.recSel = select('recFreq', [
+      { value: 'none', label: t('rec.none') }, { value: 'daily', label: t('rec.daily') },
+      { value: 'weekly', label: t('rec.weekly') }, { value: 'monthly', label: t('rec.monthly') }
+    ], 'none', function () { refreshRec(s); });
+    var untilIn = U.el('input.input', { type: 'date', name: 'until', min: T.today(), max: s.maxDate });
+    var countIn = U.el('input.input', { type: 'number', name: 'count', min: 2, max: 52, placeholder: '' });
+    var recExtra = U.el('div', null, [U.el('div.grid-2', null, [field('form.recurrence.until', untilIn), field('form.recurrence.count', countIn)]), U.el('p.muted.small', null, [t('form.recurrence.count.hint')])]);
+    recExtra.hidden = true;
+    var recPreview = U.el('p.note.rec-preview');   // 실제로 잡힐 날짜 미리보기
+    recPreview.hidden = true;
+    s.untilIn = untilIn; s.countIn = countIn; s.recExtra = recExtra; s.recPreview = recPreview;
+  }
+
+  /** 매주: 간격(1–4주) + 요일 체크. 시작 날짜의 요일은 항상 체크·잠금(날짜가 바뀌면 따라 움직인다) */
+  function recurrenceWeekly(s) {
+    var recIntervalSel = U.el('select.select', { name: 'recInterval' });
+    fillSelect(recIntervalSel, [1, 2, 3, 4].map(function (n) {
+      return { value: n, label: n === 1 ? t('rec.weeks.1') : t('rec.weeks.n', { n: n }) };
+    }), 1);
+    var recDayBoxes = REC_DAYS.map(function (code) {
+      var cb = U.el('input', { type: 'checkbox', name: 'recDay', value: code, onchange: function () { s.recPicked[code] = cb.checked; } });
+      return U.el('label', null, [cb, ' ' + t('rec.day.' + code) + '  ']);
+    });
+    s.recWeekly = U.el('div', null, [
+      field('form.recurrence.every', recIntervalSel),
+      U.el('div.field', null, [U.el('span.field-label', null, [t('form.recurrence.days')]), U.el('div', null, recDayBoxes)])
+    ]);
+    s.recWeekly.hidden = true;
+    s.recIntervalSel = recIntervalSel; s.recDayBoxes = recDayBoxes;
+  }
+
+  /** 매월: 같은 날짜 / n번째 요일 / 마지막 요일. 선택한 날짜에서 선택지를 만든다 */
+  function recurrenceMonthly(s) {
+    s.recMonthlySel = U.el('select.select', { name: 'recMonthly' });
+    s.recMonthly = field('form.recurrence.monthly', s.recMonthlySel);
+    s.recMonthly.hidden = true;
+  }
+
+  /** 선택한 날짜 → {day, code(MO..SU), daysInMonth}. 날짜가 비었으면 null */
+  function recStart(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.dateIn.value || '');
+    if (!m) return null;
+    var y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+    var dow = new Date(y, mo - 1, d).getDay();   // 0=일
+    return { day: d, code: REC_DAYS[(dow + 6) % 7], daysInMonth: new Date(y, mo, 0).getDate() };
+  }
+
+  /** 반복 칸 아래 미리보기: 서버와 같은 규칙(RB.recurrence)으로 실제 날짜를 보여준다. */
+  function updatePreview(s) {
+    var rec = s.recObj(), st = recStart(s), recPreview = s.recPreview;
+    recPreview.hidden = !rec || !st;
+    if (recPreview.hidden) return;
+    if (!rec.count && !rec.until) { recPreview.textContent = t('rec.preview.need'); return; }
+    var lang = RB.i18n.get();
+    var shown = RB.recurrence.expand(s.dateIn.value, rec).map(function (k) { return T.fmtDate(k, lang); });
+    recPreview.textContent = shown.length <= 6
+      ? t('rec.preview', { n: shown.length, list: shown.join(', ') })
+      : t('rec.preview.many', { n: shown.length, first: shown[0], last: shown[shown.length - 1] });
+  }
+
+  /** 반복 종류에 맞는 칸만 보이고, 요일 체크·매월 선택지를 시작 날짜에 맞춰 갱신한 뒤 미리보기를 다시 그린다. */
+  function refreshRec(s) {
+    var freq = s.recSel.value, st = recStart(s);
+    s.recExtra.hidden = freq === 'none';
+    s.recWeekly.hidden = freq !== 'weekly';
+    s.recMonthly.hidden = freq !== 'monthly';
+    s.recDayBoxes.forEach(function (lab) {
+      var cb = lab.firstChild, isStart = !!st && cb.value === st.code;
+      cb.disabled = isStart;
+      cb.checked = isStart || !!s.recPicked[cb.value];
+      cb.title = isStart ? t('rec.day.start') : '';
+    });
+    if (st) {
+      var prev = s.recMonthlySel.value, n = Math.ceil(st.day / 7), opts = [{ value: 'date', label: t('rec.monthly.date', { day: st.day }) }];
+      if (n <= 4) opts.push({ value: 'nth', label: t('rec.monthly.nth', { nth: t('rec.nth.' + n), weekday: t('rec.weekday.' + st.code) }) });
+      if (st.day + 7 > st.daysInMonth) opts.push({ value: 'last', label: t('rec.monthly.last', { weekday: t('rec.weekday.' + st.code) }) });
+      fillSelect(s.recMonthlySel, opts, opts.some(function (o) { return o.value === prev; }) ? prev : 'date');
+    }
+    updatePreview(s);
+  }
+
+  /** 선택한 장소의 승인 방식 안내(modeNote). */
+  function updateModeNote(s) {
+    var r = s.list.filter(function (x) { return x.calendarId === s.resSel.value; })[0];
+    // D-26: 그 방의 담당자·슈퍼 관리자 본인은 승인 없이 바로 확정되므로 안내를 다르게
+    var me = RB.app.state.user || {};
+    var selfApprover = r && (me.isSuperAdmin || (me.approverOf || []).indexOf(r.calendarId) !== -1);
+    s.modeNote.textContent = r && r.mode === 'APPROVAL' ? t(selfApprover ? 'form.approvalNoteSelf' : 'form.approvalNote') : '';
+    s.modeNote.hidden = !s.modeNote.textContent;
+  }
+
+  /** 장소가 바뀌면 모드 안내, Zoom 전용 입력 표시, 시간 선택지 범위(Zoom 24h / 일반)를 갱신한다. 편집 모드에서도 Zoom 방이면 호스트 입력을 보인다(예약 전체 날짜에 적용). */
+  function onResourceChange(s) {
+    updateModeNote(s);
+    var zoomOn = isZoomRes(s.resSel.value);
+    s.zoomNote.hidden = !zoomOn || !!s.edit;   // 새 예약 안내는 편집 모드에서 숨긴다
+    s.zoomHostRow.hidden = !zoomOn;
+    if (!zoomOn) { s.zoomHostToggle.checked = false; s.zoomHostBox.hidden = true; s.zoomHostIn.value = ''; }
+    s.aiSummaryRow.hidden = !(zoomOn && cfg().zoomAiSummary);
+    if (s.aiSummaryRow.hidden) s.aiSummaryIn.checked = false;
+    s.optHint.textContent = ' ' + t(s.aiSummaryRow.hidden ? 'form.optional.hint' : 'form.optional.hintAi');
+    fillSelect(s.startSel, timeOptions(false, zoomOn), Number(s.startSel.value));
+    fillSelect(s.endSel, timeOptions(true, zoomOn).slice(1), Number(s.endSel.value));
+  }
+
+  /** 폼 제출: 읽기 → 검사 → 편집이면 update, 새 예약이면 book 을 부른다. 검사 실패는 폼 안 오류 상자에 보여준다. */
+  function submitForm(e, s, io) {
+    var edit = s.edit, errBox = s.errBox;
+    e.preventDefault();
+    var params = io.read();
+    var problem = io.validate(params);
+    if (problem) { errBox.textContent = problem; errBox.hidden = false; return; }
+    errBox.hidden = true; var done = U.busy(s.submitBtn);
+    RB.people.remember(params.guests);
+    if (edit) {
+      RB.api.call('update', { eventId: edit.eventId, title: params.title, start: params.start, end: params.end, guests: params.guests, zoomHost: isZoomRes(s.resSel.value) ? params.zoomHost : undefined,
+        aiSummary: (isZoomRes(s.resSel.value) && cfg().zoomAiSummary && s.aiSummaryIn.checked !== !!edit.aiSummary) ? s.aiSummaryIn.checked : undefined })   // Zoom 호스트는 항상 보낸다('' = 지우기). aiSummary 는 체크가 처음 값에서 바뀐 때만
+        .then(function (result) { handleUpdate(result, params, edit, errBox); })
+        .catch(function (err) { errBox.textContent = t('result.error', { message: err.message || err.code }); errBox.hidden = false; })
+        .then(done);
+      return;
+    }
+    RB.api.call('book', params).then(function (result) { handleResult(result, params); })
+      .catch(function (err) { U.toast(t('result.error', { message: err.message || err.code }), 'error'); })
+      .then(done);
+  }
+
+  /** 폼 입력칸에서 값을 읽는 read(), 검사하는 validate(), 반복 규칙을 만드는 recObj() 묶음 */
+  function formIO(s) {
+    var edit = s.edit, initial = s.initial;
     function checkedDays() {
-      return recDayBoxes.map(function (lab) { return lab.firstChild; }).filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
+      return s.recDayBoxes.map(function (lab) { return lab.firstChild; }).filter(function (cb) { return cb.checked; }).map(function (cb) { return cb.value; });
     }
     function read() {
-      var key = dateIn.value;
+      var key = s.dateIn.value;
       var rec = recObj();
       return {
-        calendarId: resSel.value,
-        start: T.make(key, Number(startSel.value)).toISOString(),
-        end: T.make(key, Number(endSel.value)).toISOString(),
-        title: titleIn.value.trim(), grade: gradeSel.value,
-        note: noteIn.value.trim() || null,
-        guests: guests.values(),
-        bookFor: (bookForToggle.checked && !edit) ? bookForIn.value.trim().toLowerCase() : '',
-        zoomHost: (zoomHostToggle.checked && !zoomHostRow.hidden) ? zoomHostIn.value.trim().toLowerCase() : '',
-        aiSummary: !aiSummaryRow.hidden && aiSummaryIn.checked,
+        calendarId: s.resSel.value,
+        start: T.make(key, Number(s.startSel.value)).toISOString(),
+        end: T.make(key, Number(s.endSel.value)).toISOString(),
+        title: s.titleIn.value.trim(), grade: s.gradeSel.value,
+        note: s.noteIn.value.trim() || null,
+        guests: s.guests.values(),
+        bookFor: (s.bookForToggle.checked && !edit) ? s.bookForIn.value.trim().toLowerCase() : '',
+        zoomHost: (s.zoomHostToggle.checked && !s.zoomHostRow.hidden) ? s.zoomHostIn.value.trim().toLowerCase() : '',
+        aiSummary: !s.aiSummaryRow.hidden && s.aiSummaryIn.checked,
         recurrence: rec
       };
     }
     /** 지금 입력칸의 반복 규칙. 반복 없음이면 null. read() 와 미리보기가 같이 쓴다. */
     function recObj() {
-      var rec = null, wk = recSel.value === 'weekly', mo = recSel.value === 'monthly';
-      if (recSel.value !== 'none') rec = {
-        freq: recSel.value, until: untilIn.value || null, count: countIn.value ? Number(countIn.value) : null,
-        interval: wk ? Number(recIntervalSel.value) : undefined, days: wk ? checkedDays() : undefined, monthly: mo ? recMonthlySel.value : undefined
+      var rec = null, wk = s.recSel.value === 'weekly', mo = s.recSel.value === 'monthly';
+      if (s.recSel.value !== 'none') rec = {
+        freq: s.recSel.value, until: s.untilIn.value || null, count: s.countIn.value ? Number(s.countIn.value) : null,
+        interval: wk ? Number(s.recIntervalSel.value) : undefined, days: wk ? checkedDays() : undefined, monthly: mo ? s.recMonthlySel.value : undefined
       };
       return rec;
     }
     function validate(p) {
-      if (!p.calendarId || !dateIn.value || !p.title) return t('form.err.required');
+      if (!p.calendarId || !s.dateIn.value || !p.title) return t('form.err.required');
       if (!edit && !p.grade) return t('form.err.grade');
-      if (Number(endSel.value) <= Number(startSel.value)) return t('form.err.order');
+      if (Number(s.endSel.value) <= Number(s.startSel.value)) return t('form.err.order');
       // 편집 중 시작 시각을 그대로 두면(이미 진행 중인 예약의 제목·참석자만 고칠 때) 과거 검사를 건너뛴다
-      var startUnchanged = edit && T.dateKey(new Date(p.start)) === initial.date && Number(startSel.value) === initial.startMin;
+      var startUnchanged = edit && T.dateKey(new Date(p.start)) === initial.date && Number(s.startSel.value) === initial.startMin;
       if (!startUnchanged && new Date(p.start) < new Date()) return t('form.err.past');
       var bad = (p.guests || []).filter(function (g) { return !EMAIL_RE.test(g); });
       if (bad.length) return t('form.err.guests', { list: bad.join(', ') });
-      if (zoomHostToggle.checked && !zoomHostRow.hidden && !p.zoomHost) return t('form.err.zoomHost');
+      if (s.zoomHostToggle.checked && !s.zoomHostRow.hidden && !p.zoomHost) return t('form.err.zoomHost');
       if (p.zoomHost && !EMAIL_RE.test(p.zoomHost)) return t('form.err.zoomHost');
-      if (bookForToggle.checked && !edit && !p.bookFor) return t('form.err.bookFor');
+      if (s.bookForToggle.checked && !edit && !p.bookFor) return t('form.err.bookFor');
       if (p.bookFor && !EMAIL_RE.test(p.bookFor)) return t('form.err.bookFor');
       // 대신 예약은 학교 계정만(예약 주인이 사이트에 로그인해야 함, D-31). 외부인은 참석자나 Zoom 호스트로 — 서버까지 가기 전에 안내(2026-10-20)
       var doms = cfg().domains || [];
       if (p.bookFor && doms.length && doms.indexOf(p.bookFor.split('@')[1]) === -1) return t('form.err.bookForDomain', { domains: doms.join(', ') });
       return null;
     }
-
-    U.modal(form, { title: t(edit ? 'form.editTitle' : 'form.title') });
-    setTimeout(function () { titleIn.focus(); }, 50);
+    return { read: read, recObj: recObj, validate: validate };
   }
 
   /** 편집 결과 분기(D-25): 저장되면 현황판 캐시를 갱신하고 목록을 다시 그린다. 시간 충돌은 폼 안에 보여준다. */
